@@ -61,11 +61,11 @@
   :root[data-theme="dark"] .logo-icon{ filter:invert(1); }
   .hdr-spacer{ flex:1 1 auto; }
   .icon-btn{
-    width:40px; height:40px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    width:44px; height:44px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
     border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); color:var(--ink);
     cursor:pointer;
   }
-  .icon-btn svg{ width:20px; height:20px; }
+  .icon-btn svg{ width:21px; height:21px; }
   .icon-btn:active{ background:var(--panel-2); }
   .icon-btn:disabled{ opacity:.35; }
 
@@ -95,31 +95,28 @@
     width:5.5em; padding:6px 7px; border:1px solid var(--border); border-radius:8px;
     background:var(--panel-2); color:var(--ink); font-family:"IBM Plex Mono",monospace;
   }
-  .propbar .swrow{ display:flex; gap:5px; flex:1 1 auto; }
-  .propbar .sw{ width:24px; height:24px; border-radius:7px; border:2px solid transparent; padding:0; cursor:pointer; flex:0 0 auto; }
+  .propbar .swrow{ display:flex; gap:7px; flex:1 1 auto; flex-wrap:wrap; }
+  .propbar .sw{ width:34px; height:34px; border-radius:9px; border:2px solid transparent; padding:0; cursor:pointer; flex:0 0 auto; }
   .propbar .sw[aria-pressed="true"]{ border-color:var(--ink); }
   .propbar .del-btn{
-    margin-left:auto; width:36px; height:36px; border-radius:9px; border:1px solid var(--danger); color:var(--danger);
+    margin-left:auto; width:46px; height:46px; border-radius:11px; border:1px solid var(--danger); color:var(--danger);
     background:transparent; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
   }
-  .propbar .del-btn svg{ width:17px; height:17px; }
+  .propbar .del-btn svg{ width:20px; height:20px; }
 
   footer.toolbar{
-    display:flex; flex:0 0 auto; gap:4px; padding:6px 8px;
-    padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
+    display:flex; flex:0 0 auto; gap:6px; padding:8px 10px;
+    padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
     background:var(--panel); border-top:1px solid var(--border); box-shadow:0 -2px 10px rgba(0,0,0,0.05); z-index:5;
-    overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
-  footer.toolbar::-webkit-scrollbar{ display:none; }
   .tool-btn{
-    flex:0 0 auto; width:60px; height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    flex:1 1 0; min-width:0; height:68px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
     border:1px solid transparent; border-radius:var(--radius); background:transparent; color:var(--ink-soft); cursor:pointer;
   }
-  .tool-btn svg{ width:21px; height:21px; }
-  .tool-btn span{ font-size:10px; font-weight:500; white-space:nowrap; }
+  .tool-btn svg{ width:27px; height:27px; }
+  .tool-btn span{ font-size:11.5px; font-weight:500; white-space:nowrap; }
   .tool-btn[aria-pressed="true"]{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
   .tool-btn:active{ background:var(--panel-2); }
-  .tool-sep{ flex:0 0 auto; width:1px; margin:8px 2px; background:var(--border); }
 
   .sheet-backdrop{ position:fixed; inset:0; background:rgba(20,16,8,0.4); z-index:40; }
   .sheet{
@@ -139,14 +136,14 @@
   .parts-cat > summary::-webkit-details-marker{ display:none; }
   .parts-cat > summary::before{ content:"▸"; font-size:10px; color:var(--ink-faint); }
   .parts-cat[open] > summary::before{ content:"▾"; }
-  .parts-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 10px 10px; }
-  @media (min-width:480px){ .parts-grid{ grid-template-columns:repeat(4,1fr); } }
+  .parts-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; padding:0 10px 10px; }
+  @media (min-width:420px){ .parts-grid{ grid-template-columns:repeat(3,1fr); } }
   .part-btn{
-    display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px;
-    border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--ink-soft); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:14px 6px; min-height:92px;
+    border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--ink-soft); cursor:pointer;
   }
-  .part-btn svg{ width:30px; height:30px; }
-  .part-btn span{ font-size:10px; text-align:center; line-height:1.2; }
+  .part-btn svg{ width:36px; height:36px; }
+  .part-btn span{ font-size:12px; text-align:center; line-height:1.25; }
   .part-btn:active{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
   .part-btn[aria-pressed="true"]{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
 
@@ -189,16 +186,16 @@
     font-size:var(--fs-xs); font-weight:600; box-shadow:var(--shadow); white-space:nowrap;
   }
   body.architect-mode footer.toolbar .tool-btn:not([data-tool="select"]),
-  body.architect-mode #shapesBtn, body.architect-mode #partsBtn{ opacity:.35; pointer-events:none; }
+  body.architect-mode #moreBtn{ opacity:.35; pointer-events:none; }
   body.architect-mode .canvas-wrap{ outline:2px solid var(--accent); outline-offset:-2px; }
 
-  .menu-row{ display:flex; align-items:center; gap:10px; padding:13px 4px; border-bottom:1px solid var(--border); }
+  .menu-row{ display:flex; align-items:center; gap:12px; padding:16px 4px; border-bottom:1px solid var(--border); }
   .menu-row:last-child{ border-bottom:none; }
   .menu-row button.full{
     flex:1 1 auto; text-align:left; background:none; border:none; padding:0; font-size:var(--fs-base); color:var(--ink);
-    display:flex; align-items:center; gap:10px;
+    display:flex; align-items:center; gap:12px;
   }
-  .menu-row button.full svg{ width:19px; height:19px; color:var(--ink-soft); flex:0 0 auto; }
+  .menu-row button.full svg{ width:21px; height:21px; color:var(--ink-soft); flex:0 0 auto; }
   .menu-sizes{ display:flex; gap:10px; flex-wrap:wrap; padding:6px 4px 4px; }
   .menu-sizes label{ display:flex; flex-direction:column; gap:3px; font-size:var(--fs-xs); color:var(--ink-soft); }
   .menu-sizes input{ width:5.5em; padding:7px 8px; border:1px solid var(--border); border-radius:8px; background:var(--panel-2); color:var(--ink); font-family:"IBM Plex Mono",monospace; }
@@ -271,35 +268,13 @@
     <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="17" x2="17" y2="3"/></svg>
     <span>Cable</span>
   </button>
-  <button type="button" class="tool-btn" data-tool="cablerun" aria-pressed="false" title="Cable run">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16 L8 8 L12 12 L17 4"/></svg>
-    <span>Cable run</span>
-  </button>
-  <button type="button" class="tool-btn" data-tool="net" aria-pressed="false" title="Net">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="1"/><line x1="3" y1="3" x2="17" y2="17"/><line x1="3" y1="9.5" x2="10.5" y2="17"/><line x1="9.5" y1="3" x2="17" y2="10.5"/></svg>
-    <span>Net</span>
-  </button>
-  <div class="tool-sep"></div>
-  <button type="button" class="tool-btn" id="shapesBtn" title="Basic shapes">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="10" width="7" height="7"/><circle cx="14.5" cy="13.5" r="3.5"/><path d="M10 2.5 L13.5 8.5 L6.5 8.5 Z"/></svg>
-    <span>Shapes</span>
-  </button>
-  <button type="button" class="tool-btn" id="partsBtn" title="Parts">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.5"/><circle cx="10" cy="10" r="3"/></svg>
-    <span>Parts</span>
-  </button>
-  <div class="tool-sep"></div>
-  <button type="button" class="tool-btn" data-tool="text" aria-pressed="false" title="Text">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h12M10 5v10"/></svg>
-    <span>Text</span>
-  </button>
-  <button type="button" class="tool-btn" data-tool="marker" aria-pressed="false" title="Marker">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><text x="10" y="13" font-size="8" text-anchor="middle" fill="currentColor" stroke="none">A</text></svg>
-    <span>Marker</span>
-  </button>
   <button type="button" class="tool-btn" data-tool="measure" aria-pressed="false" title="Measure">
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="3" y1="17" x2="17" y2="3" stroke-dasharray="2 2"/><line x1="9" y1="12" x2="12" y2="9" stroke-width="1.8"/></svg>
     <span>Measure</span>
+  </button>
+  <button type="button" class="tool-btn" id="moreBtn" title="More tools">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="4.5" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.5" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.5" cy="15" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="15" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg>
+    <span id="moreBtnLabel">More</span>
   </button>
 </footer>
 
@@ -1175,6 +1150,7 @@
 
   // ---------- tools ----------
   var DRAFT_TOOLS = {line:1, cablerun:1, net:1, shape:1};
+  var MORE_TOOLS = {cablerun:"Cable run", net:"Net", text:"Text", marker:"Marker"};
   function cancelDraft(){
     if (draft && draft.type === "polyline" && draft.points.length){ /* discard in-progress cable run */ }
     draft = null;
@@ -1191,6 +1167,15 @@
     Array.prototype.forEach.call(document.querySelectorAll("#toolbar .tool-btn[data-tool]"), function(b){
       b.setAttribute("aria-pressed", String(b.dataset.tool === id));
     });
+    var moreBtn = document.getElementById("moreBtn");
+    var moreLabel = document.getElementById("moreBtnLabel");
+    if (MORE_TOOLS[id]){
+      moreBtn.setAttribute("aria-pressed", "true");
+      moreLabel.textContent = MORE_TOOLS[id];
+    } else {
+      moreBtn.setAttribute("aria-pressed", "false");
+      moreLabel.textContent = "More";
+    }
     render();
   }
   Array.prototype.forEach.call(document.querySelectorAll("#toolbar .tool-btn[data-tool]"), function(b){
@@ -1198,11 +1183,11 @@
   });
 
   // ---------- parts sheet ----------
-  document.getElementById("partsBtn").addEventListener("click", function(){
+  function openPartsSheet(){
     var body =
       '<div class="sa-toggle"><div class="sa-text"><b>Self-assembly</b><small>Field-assembled instead of factory-swaged</small></div>' +
       '<button type="button" class="switch" id="saSwitch" aria-pressed="' + String(pendingSA) + '"></button></div>' +
-      '<div class="parts-grid" id="partsGrid" style="grid-template-columns:repeat(3,1fr);"></div>';
+      '<div class="parts-grid" id="partsGrid"></div>';
     openSheet("Parts", body, function(sheet, close){
       var saSwitch = sheet.querySelector("#saSwitch");
       var grid = sheet.querySelector("#partsGrid");
@@ -1237,7 +1222,7 @@
         grid.appendChild(b);
       });
     });
-  });
+  }
 
   // ---------- shapes sheet ----------
   var SHAPE_DEFS = [
@@ -1250,8 +1235,8 @@
     if (kind === "circle") return '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/>';
     return '<polygon points="12,4 20,20 4,20" fill="none" stroke="currentColor" stroke-width="1.6"/>';
   }
-  document.getElementById("shapesBtn").addEventListener("click", function(){
-    var body = '<div class="parts-grid" id="shapesGrid" style="grid-template-columns:repeat(3,1fr);"></div>';
+  function openShapesSheet(){
+    var body = '<div class="parts-grid" id="shapesGrid"></div>';
     openSheet("Basic shapes", body, function(sheet, close){
       var grid = sheet.querySelector("#shapesGrid");
       SHAPE_DEFS.forEach(function(p){
@@ -1267,17 +1252,40 @@
         grid.appendChild(b);
       });
     });
+  }
+
+  // ---------- more sheet (secondary tools) ----------
+  var MORE_DEFS = [
+    {label:"Cable run", icon:'<path d="M3 16 L8 8 L12 12 L17 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', action:function(){ setTool("cablerun"); }},
+    {label:"Net", icon:'<rect x="3" y="3" width="14" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><line x1="3" y1="3" x2="17" y2="17" stroke="currentColor" stroke-width="1.4"/><line x1="3" y1="9.5" x2="10.5" y2="17" stroke="currentColor" stroke-width="1.4"/><line x1="9.5" y1="3" x2="17" y2="10.5" stroke="currentColor" stroke-width="1.4"/>', action:function(){ setTool("net"); }},
+    {label:"Basic shapes", icon:'<rect x="2.5" y="10" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="14.5" cy="13.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5 L13.5 8.5 L6.5 8.5 Z" fill="none" stroke="currentColor" stroke-width="1.4"/>', action:openShapesSheet},
+    {label:"Parts", icon:'<circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/>', action:openPartsSheet},
+    {label:"Text", icon:'<path d="M4 5h12M10 5v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', action:function(){ setTool("text"); }},
+    {label:"Marker", icon:'<circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="10" y="13" font-size="8" text-anchor="middle" fill="currentColor" stroke="none">A</text>', action:function(){ setTool("marker"); }}
+  ];
+  document.getElementById("moreBtn").addEventListener("click", function(){
+    var body = '<div class="parts-grid" id="moreGrid"></div>';
+    openSheet("More tools", body, function(sheet, close){
+      var grid = sheet.querySelector("#moreGrid");
+      MORE_DEFS.forEach(function(m){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "part-btn";
+        b.innerHTML = '<svg viewBox="0 0 20 20">' + m.icon + '</svg><span>' + m.label + '</span>';
+        b.addEventListener("click", function(){ close(); m.action(); });
+        grid.appendChild(b);
+      });
+    });
   });
 
   // ---------- color sheet ----------
   document.getElementById("colorToolBtn").addEventListener("click", function(){
-    var body = '<div class="parts-grid" id="colGrid" style="grid-template-columns:repeat(4,1fr);"></div>';
+    var body = '<div class="parts-grid" id="colGrid"></div>';
     openSheet("Color", body, function(sheet){
       var grid = sheet.querySelector("#colGrid");
       state.legend.forEach(function(item){
         var b = document.createElement("button");
         b.type = "button"; b.className = "part-btn";
-        b.innerHTML = '<span style="display:block;width:34px;height:34px;border-radius:9px;background:' + item.color + ';"></span><span>' + item.name + '</span>';
+        b.innerHTML = '<span style="display:block;width:40px;height:40px;border-radius:10px;background:' + item.color + ';"></span><span>' + item.name + '</span>';
         b.addEventListener("click", function(){
           state.color = item.color;
           document.getElementById("colDotIcon").style.background = item.color;
