@@ -728,7 +728,11 @@
   // Generic length (m) any end fitting occupies -- eaten from the cable's drawn
   // length so the labeled A-B distance always matches what was measured on site.
   var PART_END_LEN_M = 0.08;
-  var SNAP_PX = 28;
+  // Snap tolerance as a constant on-screen distance (CSS px), converted to
+  // stage units by the current zoom -- a fixed unit radius would be a few
+  // screen px wide (untappable) at the zoomed-out "fit to screen" default.
+  var SNAP_PX_SCREEN = 34;
+  function effectiveSnapPx(){ return Math.min(SNAP_PX_SCREEN / zoom, 150); }
 
   // ---------- persistence ----------
   function serializeState(){
@@ -913,7 +917,7 @@
     return Object.keys(set);
   }
   function findSnapTarget(p){
-    var best = null, bestDist = SNAP_PX;
+    var best = null, bestDist = effectiveSnapPx();
     state.shapes.forEach(function(s){
       var cands = null;
       if (s.type === "line"){
