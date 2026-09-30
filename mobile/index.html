@@ -1,0 +1,1706 @@
+<!doctype html>
+<title>Riglines Mobile</title>
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Riglines">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2b6cb5">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#f6f3ec; --paper-line:#ded6c2; --paper-line-strong:#cabf9f;
+    --ink:#2a2621; --ink-soft:#726a5b; --ink-faint:#a89d87;
+    --panel:#fdfcf8; --panel-2:#efeadf; --border:#ddd4bf;
+    --accent:#2b6cb5; --accent-soft:#dbe8f6; --accent-ink:#ffffff;
+    --danger:#b5432b; --danger-soft:#f3ded7; --danger-ink:#ffffff;
+    --measure:#ff2f92;
+    --shadow: 0 1px 2px rgba(40,32,16,0.08), 0 4px 14px rgba(40,32,16,0.06);
+    --radius: 10px;
+    --fs-xs:.6875rem; --fs-sm:.8125rem; --fs-base:.9375rem; --fs-md:1.1875rem; --fs-lg:1.5rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#1a1c1e; --paper-line:#2b2e31; --paper-line-strong:#383c40;
+      --ink:#e9e5da; --ink-soft:#a39c8c; --ink-faint:#6d6858;
+      --panel:#212325; --panel-2:#1a1c1e; --border:#34373a;
+      --accent:#6ba3e0; --accent-soft:#243a51; --accent-ink:#0d1520;
+      --danger:#d9835f; --danger-soft:#3a271f; --danger-ink:#1a1208;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#1a1c1e; --paper-line:#2b2e31; --paper-line-strong:#383c40;
+    --ink:#e9e5da; --ink-soft:#a39c8c; --ink-faint:#6d6858;
+    --panel:#212325; --panel-2:#1a1c1e; --border:#34373a;
+    --accent:#6ba3e0; --accent-soft:#243a51; --accent-ink:#0d1520;
+    --danger:#d9835f; --danger-soft:#3a271f; --danger-ink:#1a1208;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  [hidden]{display:none!important;}
+  html,body{height:100%; overscroll-behavior:none;}
+  body{
+    margin:0; background:var(--panel-2); color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, sans-serif; font-size:var(--fs-base);
+    display:flex; flex-direction:column; overflow:hidden; touch-action:none;
+  }
+  button, input, select{ font-family:inherit; font-size:var(--fs-sm); color:var(--ink); }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  header{
+    display:flex; align-items:center; gap:8px; flex:0 0 auto;
+    padding:8px 10px; padding-top:calc(8px + env(safe-area-inset-top,0px));
+    background:var(--panel); border-bottom:1px solid var(--border); box-shadow:var(--shadow); z-index:5;
+  }
+  header h1{ font-size:var(--fs-lg); margin:0; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .logo-icon{ height:24px; width:auto; display:block; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .logo-icon{ filter:invert(1); } }
+  :root[data-theme="dark"] .logo-icon{ filter:invert(1); }
+  .hdr-spacer{ flex:1 1 auto; }
+  .icon-btn{
+    width:40px; height:40px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); color:var(--ink);
+    cursor:pointer;
+  }
+  .icon-btn svg{ width:20px; height:20px; }
+  .icon-btn:active{ background:var(--panel-2); }
+  .icon-btn:disabled{ opacity:.35; }
+
+  .canvas-wrap{ flex:1 1 auto; overflow:auto; background:var(--paper); position:relative; min-height:0; touch-action:none; }
+  svg#stage{ display:block; position:relative; z-index:1; }
+  .shape-line{ stroke-linecap:round; }
+  .dim-label{ font-family:"IBM Plex Mono",monospace; font-size:14px; fill:var(--ink); font-variant-numeric:tabular-nums; }
+  .measure-label{ fill:var(--measure); font-weight:600; }
+  .part-label{ font-family:"IBM Plex Mono",monospace; font-size:11px; fill:var(--ink-soft); }
+  .handle{ fill:var(--panel); stroke:var(--accent); stroke-width:2; }
+  .sel-outline{ fill:none; stroke:var(--accent); stroke-width:1.5; stroke-dasharray:5 4; }
+  .ghost{ opacity:.55; pointer-events:none; }
+
+  .zoom-pill{
+    position:absolute; right:10px; bottom:10px; z-index:4;
+    background:var(--panel); border:1px solid var(--border); border-radius:999px; box-shadow:var(--shadow);
+    padding:6px 12px; font-family:"IBM Plex Mono",monospace; font-size:var(--fs-xs); color:var(--ink-soft);
+  }
+
+  .propbar{
+    position:absolute; left:8px; right:8px; bottom:10px; z-index:6;
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:8px 10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .propbar .plabel{ font-weight:600; font-size:var(--fs-sm); flex:0 0 auto; }
+  .propbar input[type=number]{
+    width:5.5em; padding:6px 7px; border:1px solid var(--border); border-radius:8px;
+    background:var(--panel-2); color:var(--ink); font-family:"IBM Plex Mono",monospace;
+  }
+  .propbar .swrow{ display:flex; gap:5px; flex:1 1 auto; }
+  .propbar .sw{ width:24px; height:24px; border-radius:7px; border:2px solid transparent; padding:0; cursor:pointer; flex:0 0 auto; }
+  .propbar .sw[aria-pressed="true"]{ border-color:var(--ink); }
+  .propbar .del-btn{
+    margin-left:auto; width:36px; height:36px; border-radius:9px; border:1px solid var(--danger); color:var(--danger);
+    background:transparent; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  }
+  .propbar .del-btn svg{ width:17px; height:17px; }
+
+  footer.toolbar{
+    display:flex; flex:0 0 auto; gap:4px; padding:6px 8px;
+    padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
+    background:var(--panel); border-top:1px solid var(--border); box-shadow:0 -2px 10px rgba(0,0,0,0.05); z-index:5;
+    overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  footer.toolbar::-webkit-scrollbar{ display:none; }
+  .tool-btn{
+    flex:0 0 auto; width:60px; height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    border:1px solid transparent; border-radius:var(--radius); background:transparent; color:var(--ink-soft); cursor:pointer;
+  }
+  .tool-btn svg{ width:21px; height:21px; }
+  .tool-btn span{ font-size:10px; font-weight:500; white-space:nowrap; }
+  .tool-btn[aria-pressed="true"]{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .tool-btn:active{ background:var(--panel-2); }
+  .tool-sep{ flex:0 0 auto; width:1px; margin:8px 2px; background:var(--border); }
+
+  .sheet-backdrop{ position:fixed; inset:0; background:rgba(20,16,8,0.4); z-index:40; }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:41; background:var(--panel);
+    border-top-left-radius:16px; border-top-right-radius:16px; box-shadow:0 -8px 30px rgba(0,0,0,0.2);
+    max-height:78vh; display:flex; flex-direction:column;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  }
+  .sheet-grab{ width:36px; height:4px; border-radius:2px; background:var(--border); margin:9px auto 4px; flex:0 0 auto; }
+  .sheet-head{ display:flex; align-items:center; gap:8px; padding:2px 16px 8px; flex:0 0 auto; }
+  .sheet-head h2{ margin:0; font-size:var(--fs-md); font-weight:700; flex:1 1 auto; }
+  .sheet-close{ width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--panel); }
+  .sheet-body{ overflow-y:auto; padding:0 12px 8px; }
+
+  .parts-cat{ border:1px solid var(--border); border-radius:10px; margin-bottom:6px; background:var(--panel-2); }
+  .parts-cat > summary{ list-style:none; cursor:pointer; padding:10px 12px; font-size:var(--fs-sm); font-weight:600; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .parts-cat > summary::-webkit-details-marker{ display:none; }
+  .parts-cat > summary::before{ content:"▸"; font-size:10px; color:var(--ink-faint); }
+  .parts-cat[open] > summary::before{ content:"▾"; }
+  .parts-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 10px 10px; }
+  @media (min-width:480px){ .parts-grid{ grid-template-columns:repeat(4,1fr); } }
+  .part-btn{
+    display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px;
+    border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--ink-soft); cursor:pointer;
+  }
+  .part-btn svg{ width:30px; height:30px; }
+  .part-btn span{ font-size:10px; text-align:center; line-height:1.2; }
+  .part-btn:active{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .part-btn[aria-pressed="true"]{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+
+  .sa-toggle{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; margin:2px 0 10px; border:1px solid var(--border); border-radius:10px; background:var(--panel-2);
+  }
+  .sa-toggle .sa-text{ display:flex; flex-direction:column; gap:1px; }
+  .sa-toggle .sa-text b{ font-size:var(--fs-sm); font-weight:600; }
+  .sa-toggle .sa-text small{ font-size:10.5px; color:var(--ink-soft); }
+  .switch{
+    flex:0 0 auto; width:44px; height:26px; border-radius:999px; border:1px solid var(--border);
+    background:var(--panel); position:relative; cursor:pointer; padding:0;
+  }
+  .switch::after{
+    content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+    background:var(--ink-faint); transition:transform .15s ease, background .15s ease;
+  }
+  .switch[aria-pressed="true"]{ background:var(--accent-soft); border-color:var(--accent); }
+  .switch[aria-pressed="true"]::after{ transform:translateX(18px); background:var(--accent); }
+
+  .drawbar{
+    position:absolute; left:8px; right:8px; bottom:10px; z-index:6;
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:8px 10px; display:flex; align-items:center; gap:8px;
+  }
+  .drawbar .dtext{ flex:1 1 auto; font-size:var(--fs-sm); color:var(--ink-soft); }
+  .drawbar button{
+    flex:0 0 auto; width:38px; height:38px; border-radius:9px; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--ink); display:flex; align-items:center; justify-content:center;
+  }
+  .drawbar button svg{ width:18px; height:18px; }
+  .drawbar button.primary{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .drawbar button:disabled{ opacity:.35; }
+
+  .sel-group-outline{ fill:none; stroke:var(--accent); stroke-width:1.5; stroke-dasharray:2 3; }
+  .addmode-hint{
+    position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:6;
+    background:var(--accent); color:var(--accent-ink); padding:6px 14px; border-radius:999px;
+    font-size:var(--fs-xs); font-weight:600; box-shadow:var(--shadow); white-space:nowrap;
+  }
+  body.architect-mode footer.toolbar .tool-btn:not([data-tool="select"]),
+  body.architect-mode #shapesBtn, body.architect-mode #partsBtn{ opacity:.35; pointer-events:none; }
+  body.architect-mode .canvas-wrap{ outline:2px solid var(--accent); outline-offset:-2px; }
+
+  .menu-row{ display:flex; align-items:center; gap:10px; padding:13px 4px; border-bottom:1px solid var(--border); }
+  .menu-row:last-child{ border-bottom:none; }
+  .menu-row button.full{
+    flex:1 1 auto; text-align:left; background:none; border:none; padding:0; font-size:var(--fs-base); color:var(--ink);
+    display:flex; align-items:center; gap:10px;
+  }
+  .menu-row button.full svg{ width:19px; height:19px; color:var(--ink-soft); flex:0 0 auto; }
+  .menu-sizes{ display:flex; gap:10px; flex-wrap:wrap; padding:6px 4px 4px; }
+  .menu-sizes label{ display:flex; flex-direction:column; gap:3px; font-size:var(--fs-xs); color:var(--ink-soft); }
+  .menu-sizes input{ width:5.5em; padding:7px 8px; border:1px solid var(--border); border-radius:8px; background:var(--panel-2); color:var(--ink); font-family:"IBM Plex Mono",monospace; }
+  .danger-row button.full{ color:var(--danger); }
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(20,16,8,0.4); display:flex; align-items:center; justify-content:center; z-index:60; padding:16px; }
+  .modal{ background:var(--panel); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); padding:18px; width:100%; max-width:360px; display:flex; flex-direction:column; gap:12px; }
+  .modal h3{ margin:0; font-size:var(--fs-md); font-weight:700; }
+  .modal-msg{ margin:0; font-size:var(--fs-sm); color:var(--ink-soft); }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+  .btn{ padding:9px 14px; border:1px solid var(--border); border-radius:9px; background:var(--panel); color:var(--ink); cursor:pointer; font-weight:500; }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger{ background:var(--danger); color:var(--danger-ink); border-color:var(--danger); }
+
+  .toast{
+    position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%);
+    background:var(--ink); color:var(--paper); padding:9px 16px; border-radius:999px; font-size:var(--fs-sm);
+    box-shadow:var(--shadow); z-index:70; max-width:88vw; text-align:center;
+  }
+</style>
+
+<header>
+  <h1><img src="riglines-icon.png" alt="" class="logo-icon"> Riglines</h1>
+  <div class="hdr-spacer"></div>
+  <button type="button" class="icon-btn" id="colorToolBtn" title="Color">
+    <span id="colDotIcon" style="display:block;width:19px;height:19px;border-radius:6px;border:1.5px solid var(--border);"></span>
+  </button>
+  <button type="button" class="icon-btn" id="undoBtn" title="Undo" disabled>
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h8a5 5 0 0 1 0 10h-2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 4 4 8l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button type="button" class="icon-btn" id="redoBtn" title="Redo" disabled>
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 8H8a5 5 0 0 0 0 10h2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button type="button" class="icon-btn" id="menuBtn" title="Menu">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+  </button>
+</header>
+
+<div class="canvas-wrap" id="canvasWrap">
+  <svg id="stage" width="1000" height="1600" viewBox="0 0 1000 1600">
+    <defs>
+      <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+        <path d="M 100 0 L 0 0 0 100" fill="none" stroke="var(--paper-line)" stroke-width="1"/>
+      </pattern>
+      <pattern id="gridMajor" width="500" height="500" patternUnits="userSpaceOnUse">
+        <rect width="500" height="500" fill="url(#grid)"/>
+        <path d="M 500 0 L 0 0 0 500" fill="none" stroke="var(--paper-line-strong)" stroke-width="1.2"/>
+      </pattern>
+      <pattern id="netHatch" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="18" stroke="currentColor" stroke-width="2" opacity="0.55"/>
+      </pattern>
+    </defs>
+    <rect id="bgRect" width="1000" height="1600" fill="url(#gridMajor)"/>
+    <g id="shapesLayer"></g>
+    <g id="handlesLayer"></g>
+    <g id="overlayLayer"></g>
+  </svg>
+  <div class="zoom-pill" id="zoomPill">100%</div>
+  <div class="addmode-hint" id="addmodeHint" hidden>Tap parts to add or remove</div>
+  <div class="drawbar" id="drawbar" hidden></div>
+  <div class="propbar" id="propbar" hidden></div>
+</div>
+
+<footer class="toolbar" id="toolbar">
+  <button type="button" class="tool-btn" data-tool="select" aria-pressed="true" title="Select">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 3 L16 10 L10.5 11.5 L13.5 16.5 L11 18 L8 13 L4 16 Z"/></svg>
+    <span>Select</span>
+  </button>
+  <button type="button" class="tool-btn" data-tool="line" aria-pressed="false" title="Cable">
+    <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="17" x2="17" y2="3"/></svg>
+    <span>Cable</span>
+  </button>
+  <button type="button" class="tool-btn" data-tool="cablerun" aria-pressed="false" title="Cable run">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16 L8 8 L12 12 L17 4"/></svg>
+    <span>Cable run</span>
+  </button>
+  <button type="button" class="tool-btn" data-tool="net" aria-pressed="false" title="Net">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="1"/><line x1="3" y1="3" x2="17" y2="17"/><line x1="3" y1="9.5" x2="10.5" y2="17"/><line x1="9.5" y1="3" x2="17" y2="10.5"/></svg>
+    <span>Net</span>
+  </button>
+  <div class="tool-sep"></div>
+  <button type="button" class="tool-btn" id="shapesBtn" title="Basic shapes">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="10" width="7" height="7"/><circle cx="14.5" cy="13.5" r="3.5"/><path d="M10 2.5 L13.5 8.5 L6.5 8.5 Z"/></svg>
+    <span>Shapes</span>
+  </button>
+  <button type="button" class="tool-btn" id="partsBtn" title="Parts">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.5"/><circle cx="10" cy="10" r="3"/></svg>
+    <span>Parts</span>
+  </button>
+  <div class="tool-sep"></div>
+  <button type="button" class="tool-btn" data-tool="text" aria-pressed="false" title="Text">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h12M10 5v10"/></svg>
+    <span>Text</span>
+  </button>
+  <button type="button" class="tool-btn" data-tool="marker" aria-pressed="false" title="Marker">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><text x="10" y="13" font-size="8" text-anchor="middle" fill="currentColor" stroke="none">A</text></svg>
+    <span>Marker</span>
+  </button>
+  <button type="button" class="tool-btn" data-tool="measure" aria-pressed="false" title="Measure">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="3" y1="17" x2="17" y2="3" stroke-dasharray="2 2"/><line x1="9" y1="12" x2="12" y2="9" stroke-width="1.8"/></svg>
+    <span>Measure</span>
+  </button>
+</footer>
+
+<div id="sheetLayer"></div>
+<div id="toastLayer"></div>
+
+<script>
+(function(){
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var STORE_KEY = "riglines-mobile-sketch-v1";
+  var PRESETS = [
+    {color:"#2b6cb5", name:"Main rope"},
+    {color:"#3f7d4f", name:"Secondary rope"},
+    {color:"#c68a1e", name:"Accent"},
+    {color:"#a6437e", name:"Accent 2"},
+    {color:"#6e5aa6", name:"Accent 3"},
+    {color:"#b5432b", name:"Accent 4"},
+    {color:"#2a8c82", name:"Accent 5"},
+    {color:"#4a4a46", name:"Neutral"}
+  ];
+
+  var state = {
+    scale: 100,
+    canvasW: 24,
+    canvasH: 36,
+    tool: "select",
+    color: PRESETS[0].color,
+    legend: PRESETS.map(function(p){ return {color:p.color, name:p.name}; }),
+    shapes: [],
+    selectedId: null,
+    selectedIds: [],
+    nextId: 1,
+    unit: "m"
+  };
+  var undoStack = [], redoStack = [];
+  var draft = null, dragging = null, panState = null;
+  var saveTimer = null;
+  var pendingPart = null, pendingSA = false, pendingShapeKind = null;
+  var addMode = false;
+  var architectMode = false;
+
+  var canvasWrap = document.getElementById("canvasWrap");
+  var svg = document.getElementById("stage");
+  var shapesLayer = document.getElementById("shapesLayer");
+  var handlesLayer = document.getElementById("handlesLayer");
+  var overlayLayer = document.getElementById("overlayLayer");
+  var propbar = document.getElementById("propbar");
+  var zoomPill = document.getElementById("zoomPill");
+  var zoom = 1;
+
+  function el(tag, attrs, parent){
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function uid(){ return "s" + (state.nextId++); }
+  function pxToM(px){ return px / state.scale; }
+  function mToPx(m){ return m * state.scale; }
+  function fmtLen(m){
+    if (state.unit === "mm") return Math.round(m * 1000) + " mm";
+    if (state.unit === "cm") return (m * 100).toFixed(1) + " cm";
+    return m.toFixed(2) + " m";
+  }
+
+  function toast(msg){
+    var t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.getElementById("toastLayer").appendChild(t);
+    setTimeout(function(){ t.remove(); }, 2600);
+  }
+
+  // ---------- custom modal (native confirm unreliable in sandboxed preview) ----------
+  function openModal(innerHTML){
+    var backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    var modal = document.createElement("div");
+    modal.className = "modal";
+    modal.innerHTML = innerHTML;
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    function close(){ backdrop.remove(); }
+    backdrop.addEventListener("click", function(e){ if (e.target === backdrop) close(); });
+    return {modal:modal, close:close};
+  }
+  function confirmModal(message, actionLabel, onYes, danger){
+    var m = openModal(
+      '<p class="modal-msg"></p><div class="modal-actions">' +
+      '<button type="button" class="btn" data-act="cancel">Cancel</button>' +
+      '<button type="button" class="btn ' + (danger !== false ? "danger" : "primary") + '" data-act="ok"></button></div>'
+    );
+    m.modal.querySelector(".modal-msg").textContent = message;
+    m.modal.querySelector('[data-act="ok"]').textContent = actionLabel;
+    m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
+    m.modal.querySelector('[data-act="ok"]').addEventListener("click", function(){ m.close(); onYes(); });
+  }
+  function promptModal(title, placeholder, initial, onSubmit){
+    var m = openModal(
+      '<h3></h3><input type="text" class="modal-input" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--ink);font-family:inherit;font-size:var(--fs-base);" />' +
+      '<div class="modal-actions"><button type="button" class="btn" data-act="cancel">Cancel</button><button type="button" class="btn primary" data-act="ok">Add</button></div>'
+    );
+    m.modal.querySelector("h3").textContent = title;
+    var input = m.modal.querySelector(".modal-input");
+    input.placeholder = placeholder; input.value = initial || "";
+    m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
+    function submit(){ var v = input.value.trim(); m.close(); if (v) onSubmit(v); }
+    m.modal.querySelector('[data-act="ok"]').addEventListener("click", submit);
+    input.addEventListener("keydown", function(e){ if (e.key === "Enter") submit(); });
+    setTimeout(function(){ input.focus(); }, 50);
+  }
+
+  // ---------- bottom sheets ----------
+  function openSheet(titleText, bodyHTML, onMount){
+    closeSheet();
+    var backdrop = document.createElement("div");
+    backdrop.className = "sheet-backdrop";
+    var sheet = document.createElement("div");
+    sheet.className = "sheet";
+    sheet.innerHTML =
+      '<div class="sheet-grab"></div>' +
+      '<div class="sheet-head"><h2></h2><button type="button" class="sheet-close" aria-label="Close">✕</button></div>' +
+      '<div class="sheet-body"></div>';
+    sheet.querySelector("h2").textContent = titleText;
+    sheet.querySelector(".sheet-body").innerHTML = bodyHTML;
+    backdrop.appendChild(sheet);
+    document.getElementById("sheetLayer").appendChild(backdrop);
+    function close(){ backdrop.remove(); }
+    backdrop.addEventListener("click", function(e){ if (e.target === backdrop) close(); });
+    sheet.querySelector(".sheet-close").addEventListener("click", close);
+    if (onMount) onMount(sheet, close);
+    return {sheet:sheet, close:close};
+  }
+  function closeSheet(){
+    var layer = document.getElementById("sheetLayer");
+    layer.innerHTML = "";
+  }
+
+  // ---------- part symbols (schematic, not to scale) ----------
+  function drawRopeTail(g, s, x0, y0, dx, dy, len){
+    var total = len || 16, solidLen = 4;
+    var mag = Math.hypot(dx, dy) || 1;
+    var ux = dx / mag, uy = dy / mag;
+    el("line", Object.assign({x1:x0, y1:y0, x2:x0 + ux*solidLen, y2:y0 + uy*solidLen}, s), g);
+    el("line", Object.assign({x1:x0 + ux*solidLen, y1:y0 + uy*solidLen, x2:x0 + ux*total, y2:y0 + uy*total}, s, {"stroke-dasharray":"3 2"}), g);
+  }
+  function drawFork(g, s){
+    el("path", Object.assign({d:"M -8 -16 C -10 -4 -6 2 0 4 C 6 2 10 -4 8 -16"}, s), g);
+    el("line", Object.assign({x1:-6.5, y1:-8, x2:6.5, y2:-8}, s), g);
+  }
+  function buildPart(kind, color){
+    var g = el("g", {});
+    var s = {fill:"none", stroke:color, "stroke-width":1.6, "stroke-linecap":"round"};
+    if (kind === "ring"){
+      el("circle", Object.assign({cx:0, cy:0, r:11}, s), g);
+    } else if (kind === "clevis"){
+      drawFork(g, s);
+      el("rect", {x:-4, y:4, width:8, height:14, rx:1, fill:color, stroke:color, "stroke-width":1}, g);
+      drawRopeTail(g, s, 0, 18, 0, 1);
+    } else if (kind === "shackle"){
+      el("path", Object.assign({d:"M -9 4 A 9 9 0 0 1 9 4"}, s), g);
+      el("line", Object.assign({x1:-9, y1:4, x2:-9, y2:14}, s), g);
+      el("line", Object.assign({x1:9, y1:4, x2:9, y2:14}, s), g);
+      el("line", Object.assign({x1:-9, y1:11, x2:9, y2:11}, s), g);
+      el("circle", Object.assign({cx:0, cy:11, r:1.6}, s, {fill:color}), g);
+    } else if (kind === "turnbuckle"){
+      el("line", Object.assign({x1:-16, y1:0, x2:-7, y2:0}, s), g);
+      el("circle", Object.assign({cx:-18, cy:0, r:2.4}, s), g);
+      el("rect", Object.assign({x:-7, y:-5, width:14, height:10, rx:1.5}, s), g);
+      el("line", Object.assign({x1:-7, y1:0, x2:7, y2:0}, s), g);
+      el("line", Object.assign({x1:-5, y1:-7, x2:-3, y2:-7}, s), g);
+      el("line", Object.assign({x1:-4, y1:-8, x2:-4, y2:-6}, s), g);
+      el("line", Object.assign({x1:3, y1:-7, x2:5, y2:-7}, s), g);
+      el("line", Object.assign({x1:7, y1:0, x2:16, y2:0}, s), g);
+      el("circle", Object.assign({cx:18, cy:0, r:2.4}, s), g);
+    } else if (kind === "thimble"){
+      el("path", Object.assign({d:"M 0 -12 C 7 -7 7 7 0 12 C -7 7 -7 -7 0 -12 Z"}, s), g);
+      el("path", Object.assign({d:"M 0 -7 C 3.5 -4 3.5 4 0 7 C -3.5 4 -3.5 -4 0 -7 Z"}, s), g);
+    } else if (kind === "poststack"){
+      el("path", Object.assign({d:"M -14 -10 L 14 -11 L 14 9 C 14 9 6 2 0 2 C -6 2 -14 9 -14 9 Z"}, s), g);
+    } else if (kind === "hook"){
+      el("circle", Object.assign({cx:0, cy:-14}, s, {r:3.5}), g);
+      el("line", Object.assign({x1:0, y1:-10.5, x2:0, y2:-4}, s), g);
+      el("path", Object.assign({d:"M 0 -4 C 10 -4 11 8 3 11 C -2 13 -6 9 -3 4"}, s), g);
+    } else if (kind === "eyenut"){
+      el("path", Object.assign({d:"M -8 -13 C -9 -17 -3 -19 2 -18 C 8 -17 11 -13 10 -8 C 9 -3 7 0 4 2 L 8 8 L 10 8 L 10 13 L -10 13 L -10 8 L -8 8 L -4 2 C -7 0 -9 -3 -9 -8 C -9 -10 -8 -12 -8 -13 Z"}, s), g);
+      el("path", Object.assign({d:"M -4 -8 C -5 -12 -1 -14 3 -13 C 6 -12 7 -9 5 -5 C 4 -3 1 -2 -1 -3 C -3 -4 -4 -6 -4 -8 Z"}, s), g);
+    } else if (kind === "eyebolt"){
+      el("circle", Object.assign({cx:0, cy:-13, r:6.5}, s), g);
+      el("line", Object.assign({x1:0, y1:-6.5, x2:0, y2:12}, s), g);
+      [-3,0,3,6,9].forEach(function(ty){ el("line", Object.assign({x1:-3.5, y1:ty, x2:3.5, y2:ty+1.6}, s), g); });
+    } else if (kind === "eyeend"){
+      drawRopeTail(g, s, 0, -17, 0, -1);
+      el("rect", Object.assign({x:-3, y:-17, width:6, height:9, rx:1}, s), g);
+      el("line", Object.assign({x1:0, y1:-8, x2:0, y2:-3}, s), g);
+      el("circle", Object.assign({cx:0, cy:6}, s, {r:8}), g);
+    } else if (kind === "toggle"){
+      el("line", Object.assign({x1:-16, y1:0, x2:-10, y2:0}, s), g);
+      el("rect", Object.assign({x:-10, y:-6, width:20, height:12, rx:6}, s), g);
+      el("line", Object.assign({x1:0, y1:-6, x2:0, y2:6}, s), g);
+      el("line", Object.assign({x1:-10, y1:0, x2:10, y2:0}, s), g);
+      el("line", Object.assign({x1:10, y1:0, x2:16, y2:0}, s), g);
+    } else if (kind === "clevisSA"){
+      drawFork(g, s);
+      el("rect", Object.assign({x:-4, y:4, width:8, height:10, rx:1}, s), g);
+      el("path", Object.assign({d:"M -4 20 L 0 14 L 4 20 Z"}, s), g);
+      drawRopeTail(g, s, 0, 20, 0, 1);
+    } else if (kind === "eyeendSA"){
+      drawRopeTail(g, s, 0, -17, 0, -1);
+      el("line", Object.assign({x1:0, y1:-17, x2:0, y2:-3}, s), g);
+      el("path", Object.assign({d:"M -2.5 -15 L 0 -4 L 2.5 -15 Z"}, s), g);
+      el("circle", Object.assign({cx:0, cy:6}, s, {r:8}), g);
+    } else if (kind === "clevisTB"){
+      drawFork(g, s);
+      el("line", Object.assign({x1:0, y1:4, x2:0, y2:6}, s), g);
+      el("rect", Object.assign({x:-5, y:6, width:10, height:14, rx:1.5}, s), g);
+      el("line", Object.assign({x1:0, y1:6, x2:0, y2:20}, s), g);
+      el("line", Object.assign({x1:7, y1:10, x2:9, y2:10}, s), g);
+      el("line", Object.assign({x1:8, y1:9, x2:8, y2:11}, s), g);
+      el("line", Object.assign({x1:7, y1:16, x2:9, y2:16}, s), g);
+      drawRopeTail(g, s, 0, 20, 0, 1);
+    } else if (kind === "clevisTBSA"){
+      drawFork(g, s);
+      el("line", Object.assign({x1:0, y1:4, x2:0, y2:6}, s), g);
+      el("rect", Object.assign({x:-5, y:6, width:10, height:12, rx:1.5}, s), g);
+      el("line", Object.assign({x1:0, y1:6, x2:0, y2:18}, s), g);
+      el("line", Object.assign({x1:7, y1:9, x2:9, y2:9}, s), g);
+      el("line", Object.assign({x1:8, y1:8, x2:8, y2:10}, s), g);
+      el("line", Object.assign({x1:7, y1:15, x2:9, y2:15}, s), g);
+      el("path", Object.assign({d:"M -4 24 L 0 18 L 4 24 Z"}, s), g);
+      drawRopeTail(g, s, 0, 24, 0, 1);
+    } else if (kind === "eyeendTB"){
+      el("circle", Object.assign({cx:-16, cy:0, r:5}, s), g);
+      el("line", Object.assign({x1:-11, y1:0, x2:-4, y2:0}, s), g);
+      el("rect", Object.assign({x:-4, y:-5, width:14, height:10, rx:1.5}, s), g);
+      el("line", Object.assign({x1:-4, y1:0, x2:10, y2:0}, s), g);
+      el("line", Object.assign({x1:-2, y1:-7, x2:0, y2:-7}, s), g);
+      el("line", Object.assign({x1:-1, y1:-8, x2:-1, y2:-6}, s), g);
+      el("line", Object.assign({x1:5, y1:-7, x2:7, y2:-7}, s), g);
+      el("line", Object.assign({x1:10, y1:0, x2:16, y2:0}, s), g);
+      el("circle", Object.assign({cx:18, cy:0, r:2.4}, s), g);
+      drawRopeTail(g, s, 20.4, 0, 1, 0);
+    } else if (kind === "eyeendTBSA"){
+      el("circle", Object.assign({cx:0, cy:-14, r:5}, s), g);
+      el("line", Object.assign({x1:0, y1:-9, x2:0, y2:-2}, s), g);
+      el("rect", Object.assign({x:-5, y:-2, width:10, height:12, rx:1.5}, s), g);
+      el("line", Object.assign({x1:0, y1:-2, x2:0, y2:10}, s), g);
+      el("line", Object.assign({x1:7, y1:1, x2:9, y2:1}, s), g);
+      el("line", Object.assign({x1:8, y1:0, x2:8, y2:2}, s), g);
+      el("line", Object.assign({x1:7, y1:7, x2:9, y2:7}, s), g);
+      el("path", Object.assign({d:"M -4 16 L 0 10 L 4 16 Z"}, s), g);
+      drawRopeTail(g, s, 0, 16, 0, 1);
+    } else if (kind === "clevisThread"){
+      drawFork(g, s);
+      el("line", Object.assign({x1:0, y1:4, x2:0, y2:18}, s), g);
+      [7,10,13,16].forEach(function(ty){ el("line", Object.assign({x1:-2.5, y1:ty, x2:2.5, y2:ty+1.5}, s), g); });
+    } else if (kind === "eyeendThread"){
+      el("circle", Object.assign({cx:0, cy:6}, s, {r:8}), g);
+      el("line", Object.assign({x1:0, y1:-2, x2:0, y2:-16}, s), g);
+      [-14,-11,-8,-5].forEach(function(ty){ el("line", Object.assign({x1:-2.5, y1:ty, x2:2.5, y2:ty+1.5}, s), g); });
+    } else if (kind === "extthread"){
+      drawRopeTail(g, s, 0, -17, 0, -1);
+      el("rect", Object.assign({x:-3, y:-17, width:6, height:8, rx:1}, s), g);
+      el("line", Object.assign({x1:0, y1:-9, x2:0, y2:14}, s), g);
+      [-6,-2,2,6,10].forEach(function(ty){ el("line", Object.assign({x1:-2.5, y1:ty, x2:2.5, y2:ty+1.8}, s), g); });
+      el("line", Object.assign({x1:-2.5, y1:14, x2:2.5, y2:14}, s), g);
+    } else if (kind === "loopSA"){
+      el("path", Object.assign({d:"M 0 -4 C 9 -8 9 -18 0 -18 C -9 -18 -9 -8 0 -4"}, s), g);
+      el("rect", Object.assign({x:-6, y:-4, width:12, height:8, rx:1}, s), g);
+      el("circle", Object.assign({cx:-3, cy:0, r:1}, s, {fill:color}), g);
+      el("circle", Object.assign({cx:3, cy:0, r:1}, s, {fill:color}), g);
+      el("line", Object.assign({x1:0, y1:4, x2:0, y2:14}, s), g);
+      drawRopeTail(g, s, 0, 14, 0, 1);
+    } else if (kind === "endstop"){
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:6}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      drawRopeTail(g, s, 0, 16, 0, 1);
+    } else if (kind === "variball"){
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:4}, s), g);
+      el("path", Object.assign({d:"M -7 4 A 7 5 0 0 0 7 4"}, s), g);
+      el("circle", Object.assign({cx:0, cy:-2, r:6}, s), g);
+      drawRopeTail(g, s, 0, 16, 0, 1);
+    } else if (kind === "radiushead"){
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:2}, s), g);
+      el("path", Object.assign({d:"M -6 2 A 6 10 0 0 1 6 2 Z"}, s), g);
+      drawRopeTail(g, s, 0, 16, 0, 1);
+    } else if (kind === "anchorplate"){
+      el("rect", Object.assign({x:-10, y:-10, width:20, height:20, rx:2}, s), g);
+      [[-6,-6],[6,-6],[-6,6],[6,6]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.3}, s), g); });
+      el("circle", Object.assign({cx:0, cy:0, r:3}, s), g);
+      el("line", Object.assign({x1:0, y1:-10, x2:0, y2:-17}, s), g);
+    } else if (kind === "anglesection"){
+      el("path", Object.assign({d:"M -12 -4 L -12 12 L 4 12"}, s), g);
+      el("path", Object.assign({d:"M -8 -4 L -8 8 L 4 8"}, s), g);
+      [[-10,2],[-10,9],[0,10]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1}, s), g); });
+    } else if (kind === "tubebracket"){
+      el("circle", Object.assign({cx:0, cy:8, r:9}, s), g);
+      el("rect", Object.assign({x:-3, y:-10, width:6, height:12, rx:1}, s), g);
+      el("circle", Object.assign({cx:0, cy:-7, r:1.4}, s), g);
+      el("line", Object.assign({x1:-4, y1:2, x2:-2, y2:0}, s), g);
+      el("line", Object.assign({x1:4, y1:2, x2:2, y2:0}, s), g);
+    } else if (kind === "railc"){
+      el("rect", Object.assign({x:-4, y:-18, width:8, height:36, rx:1}, s), g);
+      [-12,-4,4,12].forEach(function(ry){ el("circle", Object.assign({cx:0, cy:ry, r:1}, s), g); });
+      el("path", Object.assign({d:"M 4 -3 L 11 -3 L 11 3 L 4 3"}, s), g);
+    } else if (kind === "crossclamp"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      [[-3,-3],[3,3]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1}, s), g); });
+    } else if (kind === "ropeclamp"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("rect", Object.assign({x:-5, y:-7, width:10, height:14, rx:3}, s), g);
+      el("line", Object.assign({x1:-5, y1:0, x2:5, y2:0}, s), g);
+      el("circle", Object.assign({cx:0, cy:-7, r:1}, s), g);
+      el("circle", Object.assign({cx:0, cy:7, r:1}, s), g);
+    } else if (kind === "suspclamp"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      el("line", Object.assign({x1:0, y1:6, x2:0, y2:8.5}, s), g);
+      el("circle", Object.assign({cx:0, cy:12, r:3.5}, s), g);
+      el("line", Object.assign({x1:0, y1:15.5, x2:0, y2:20}, s), g);
+    } else if (kind === "clampholder"){
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      el("line", Object.assign({x1:0, y1:6, x2:0, y2:16}, s), g);
+      [8,10.5,13].forEach(function(ty){ el("line", Object.assign({x1:-2, y1:ty, x2:2, y2:ty}, s), g); });
+    } else if (kind === "flangering"){
+      el("circle", Object.assign({cx:0, cy:0, r:10}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:5}, s), g);
+      el("line", Object.assign({x1:-10, y1:0, x2:-5, y2:0}, s), g);
+      el("line", Object.assign({x1:5, y1:0, x2:10, y2:0}, s), g);
+      [[-10,0],[10,0]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.2}, s), g); });
+    } else if (kind === "ropecone"){
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:-6}, s), g);
+      el("path", Object.assign({d:"M -2 -6 L -7 8 L 7 8 L 2 -6 Z"}, s), g);
+      el("line", Object.assign({x1:0, y1:8, x2:0, y2:16}, s), g);
+    } else if (kind === "spacer"){
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("rect", Object.assign({x:-5, y:-8, width:10, height:16, rx:2}, s), g);
+    } else if (kind === "standoffGG"){
+      el("circle", Object.assign({cx:0, cy:-14, r:6}, s), g);
+      el("line", Object.assign({x1:0, y1:-8, x2:0, y2:12}, s), g);
+      el("circle", Object.assign({cx:0, cy:14, r:2.5}, s), g);
+    } else if (kind === "spacerwasher"){
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:7}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:2}, s), g);
+    } else if (kind === "holderMulti"){
+      el("circle", Object.assign({cx:0, cy:0, r:14}, s), g);
+      el("circle", Object.assign({cx:-3.4, cy:-9.1, r:2.2}, s), g);
+      el("circle", Object.assign({cx:4.4, cy:-7.5, r:2.2}, s), g);
+      el("circle", Object.assign({cx:7.9, cy:-0.3, r:2.2}, s), g);
+      el("path", Object.assign({d:"M -9 -10.4 L -3.7 3.1 L 5.1 4.4 L 13.2 3.5", fill:"none"}, s), g);
+    } else if (kind === "holderSingle"){
+      el("path", Object.assign({d:"M -6.4 -14 L -1.1 -16 L 4.2 -15 L 5.1 -0.9 L 7.2 9.7 L 1.3 15.9 L -6.4 13.2 L -8.7 -0.9 L -8.4 -9.1 Z"}, s), g);
+      el("path", Object.assign({d:"M -2.2 -5 L 1.3 -5.3 L 4.2 -4.1 L 5.9 -0.9 L 6.3 5 L 4.8 9.1 L 1.3 11.2 L -2.2 10.6 L -6.4 7.9 L -6.9 2.1 L -6.1 -2.1 Z"}, s), g);
+      el("circle", Object.assign({cx:0.6, cy:7.1, r:3.4}, s), g);
+    } else if (kind === "ropeguide"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      var hexPts = [];
+      for (var hi=0; hi<6; hi++){ var hang = hi*Math.PI/3 - Math.PI/6; hexPts.push((7*Math.cos(hang)).toFixed(2)+","+(7*Math.sin(hang)).toFixed(2)); }
+      el("polygon", Object.assign({points:hexPts.join(" ")}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:2.5}, s), g);
+    } else if (kind === "threadadapter"){
+      el("line", Object.assign({x1:-16, y1:0, x2:-6, y2:0}, s), g);
+      el("rect", Object.assign({x:-6, y:-4, width:5, height:8}, s), g);
+      el("rect", Object.assign({x:-1, y:-5.5, width:6, height:11}, s), g);
+      el("line", Object.assign({x1:5, y1:0, x2:16, y2:0}, s), g);
+    } else if (kind === "standoffGT"){
+      el("rect", Object.assign({x:-7, y:-16, width:14, height:6, rx:1}, s), g);
+      el("line", Object.assign({x1:0, y1:-10, x2:0, y2:8}, s), g);
+      el("line", Object.assign({x1:-9, y1:2, x2:9, y2:2}, s), g);
+      el("circle", Object.assign({cx:-5, cy:2, r:1.4}, s), g);
+      el("circle", Object.assign({cx:0, cy:12, r:2.5}, s), g);
+    } else if (kind === "railconnector"){
+      el("rect", Object.assign({x:-3, y:-16, width:6, height:32, rx:1}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12}, s), g);
+      [[-3,-3],[3,-3],[-3,3],[3,3]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:0.9}, s), g); });
+    } else if (kind === "clevisholder0"){
+      el("path", Object.assign({d:"M -6 -14 C -8 -12 -8 -6 -8 2 C -8 8 -4 12 0 12 C 4 12 8 8 8 2 C 8 -6 8 -12 6 -14 C 3 -16 -3 -16 -6 -14 Z"}, s), g);
+      el("path", Object.assign({d:"M -8 0 C -6 4 4 4 8 0"}, s), g);
+      el("circle", Object.assign({cx:1, cy:-9, r:2.6}, s), g);
+    } else if (kind === "clevisholder90"){
+      el("circle", Object.assign({cx:0, cy:-2, r:13}, s), g);
+      el("path", Object.assign({d:"M -12 4 C -8 12 8 12 12 4"}, s), g);
+      el("circle", Object.assign({cx:-6, cy:-6, r:2.2}, s), g);
+      el("circle", Object.assign({cx:2, cy:-9, r:2.2}, s), g);
+      el("circle", Object.assign({cx:6, cy:-1, r:2.2}, s), g);
+    } else if (kind === "clevisholder180"){
+      el("path", Object.assign({d:"M -18 4 C -18 -3 -14 -6 -9 -6 C -6 -8 6 -8 9 -6 C 14 -6 18 -3 18 4 C 18 8 14 10 9 8 C 6 10 -6 10 -9 8 C -14 10 -18 8 -18 4 Z"}, s), g);
+      el("line", Object.assign({x1:-9, y1:-6, x2:-9, y2:8}, s), g);
+      el("line", Object.assign({x1:9, y1:-6, x2:9, y2:8}, s), g);
+      el("circle", Object.assign({cx:-13, cy:1, r:2.2}, s), g);
+      el("circle", Object.assign({cx:13, cy:1, r:2.2}, s), g);
+    } else if (kind === "clevisholder360"){
+      el("circle", Object.assign({cx:0, cy:0, r:9}, s), g);
+      [0,60,120,180,240,300].forEach(function(deg){
+        var crad = deg*Math.PI/180;
+        el("line", Object.assign({x1:6*Math.cos(crad), y1:6*Math.sin(crad), x2:15*Math.cos(crad), y2:15*Math.sin(crad)}, s), g);
+      });
+      el("circle", Object.assign({cx:0, cy:0, r:2}, s), g);
+    } else if (kind === "standoffWebnet"){
+      el("circle", Object.assign({cx:0, cy:-12, r:8}, s), g);
+      [0,90,180,270].forEach(function(deg){
+        var wrad = deg*Math.PI/180;
+        el("circle", Object.assign({cx:5.5*Math.cos(wrad), cy:-12+5.5*Math.sin(wrad), r:1}, s), g);
+      });
+      el("line", Object.assign({x1:0, y1:-4, x2:0, y2:12}, s), g);
+      el("circle", Object.assign({cx:0, cy:14, r:2.5}, s), g);
+    } else if (kind === "endcap"){
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:4}, s), g);
+      el("path", Object.assign({d:"M -4 4 A 4 6 0 0 1 4 4 Z"}, s), g);
+    } else if (kind === "ropeclip"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:6}, s), g);
+      el("line", Object.assign({x1:-6, y1:0, x2:6, y2:0}, s), g);
+      el("circle", Object.assign({cx:0, cy:-6, r:1}, s, {fill:color}), g);
+    } else if (kind === "adjustring"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      var hexPts2 = [];
+      for (var hj=0; hj<6; hj++){ var hang2 = hj*Math.PI/3; hexPts2.push((6*Math.cos(hang2)).toFixed(2)+","+(6*Math.sin(hang2)).toFixed(2)); }
+      el("polygon", Object.assign({points:hexPts2.join(" ")}, s), g);
+      el("line", Object.assign({x1:0, y1:-6, x2:0, y2:-9}, s), g);
+    } else if (kind === "slidingdisc"){
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:9, fill:color, opacity:0.25}, s, {"stroke-width":1}), g);
+    }
+    return g;
+  }
+  // Deliberately short list: this is a fast, on-site sketching tool, not the full desktop parts library.
+  var PART_DEFS = [
+    {kind:"clevis", label:"Clevis, swaged"},
+    {kind:"clevisTB", label:"Turnbuckle with clevis"},
+    {kind:"eyeend", label:"Eye end"},
+    {kind:"eyeendTB", label:"Eye end with turnbuckle"},
+    {kind:"crossclamp", label:"Cross clamp"},
+    {kind:"eyebolt", label:"Eye bolt"},
+    {kind:"spacer", label:"Spacer"}
+  ];
+  var SA_MAP = {clevis:"clevisSA", clevisTB:"clevisTBSA", eyeend:"eyeendSA", eyeendTB:"eyeendTBSA"};
+  var SA_MAP_REV = {clevisSA:"clevis", clevisTBSA:"clevisTB", eyeendSA:"eyeend", eyeendTBSA:"eyeendTB"};
+  var SA_LABELS = {
+    clevisSA:"Clevis, self-assembly", clevisTBSA:"Turnbuckle with clevis, self-assembly",
+    eyeendSA:"Eye end, self-assembly", eyeendTBSA:"Eye end with turnbuckle, self-assembly"
+  };
+  function partLabel(kind){
+    for (var i=0;i<PART_DEFS.length;i++) if (PART_DEFS[i].kind === kind) return PART_DEFS[i].label;
+    if (SA_LABELS[kind]) return SA_LABELS[kind];
+    if (kind === "net") return "Net";
+    return kind;
+  }
+
+  // ---------- persistence ----------
+  function serializeState(){
+    return {
+      _riglines: true, savedAt: new Date().toISOString(),
+      scale: state.scale, canvasW: state.canvasW, canvasH: state.canvasH,
+      legend: state.legend, shapes: state.shapes, nextId: state.nextId, unit: state.unit
+    };
+  }
+  function hydrateState(data){
+    state.scale = data.scale || 100;
+    state.canvasW = data.canvasW || state.canvasW;
+    state.canvasH = data.canvasH || state.canvasH;
+    state.legend = data.legend || state.legend;
+    var VALID_TYPES = {line:1, measure:1, part:1, polyline:1, net:1, rect:1, circle:1, triangle:1, text:1, marker:1};
+    state.shapes = (data.shapes || []).filter(function(s){ return VALID_TYPES[s.type]; });
+    state.nextId = data.nextId || (state.shapes.length + 1);
+    state.unit = data.unit || "m";
+  }
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(serializeState())); }catch(e){}
+    }, 250);
+  }
+  function load(){
+    var raw = null;
+    try{ raw = localStorage.getItem(STORE_KEY); }catch(e){}
+    if (raw){ try{ hydrateState(JSON.parse(raw)); return; }catch(e){} }
+    state.shapes = [
+      {id: uid(), type:"line", x1:280, y1:260, x2:520, y2:260, color:"#2b6cb5"},
+      {id: uid(), type:"part", partType:"clevis", x:280, y:260, rot:0, color:"#b5432b"},
+      {id: uid(), type:"part", partType:"clevisTB", x:520, y:260, rot:0, color:"#6e5aa6"}
+    ];
+  }
+  function projectFilename(){ return "riglines-" + new Date().toISOString().slice(0,10) + ".riglines.json"; }
+  function downloadProjectFile(json, filename){
+    var blob = new Blob([json], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+  function saveProject(){
+    var json = JSON.stringify(serializeState(), null, 2);
+    var filename = projectFilename();
+    if (window.claude && window.claude.use){
+      window.claude.use("downloads").then(function(downloads){
+        if (!downloads){ fallbackCopy(json); return; }
+        return downloads.save({filename: filename, data: json}).then(function(){ toast("Project saved."); });
+      }).catch(function(err){
+        if (err && err.code === "declined") return;
+        fallbackCopy(json);
+      });
+      return;
+    }
+    try{ downloadProjectFile(json, filename); toast("Project file downloaded."); }
+    catch(e){ fallbackCopy(json); }
+  }
+  function fallbackCopy(json){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(json).then(function(){ toast("Couldn't save a file here — project JSON copied instead."); });
+    } else {
+      toast("Couldn't save here.");
+    }
+  }
+  function openProjectFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var data;
+      try{ data = JSON.parse(reader.result); }
+      catch(e){ toast("That file doesn't look like a Riglines project."); return; }
+      hydrateState(data);
+      undoStack = []; redoStack = []; syncUndoButtons();
+      clearSelection();
+      applyCanvasSize();
+      fitToScreen();
+      render();
+      toast("Project loaded.");
+    };
+    reader.onerror = function(){ toast("Couldn't read that file."); };
+    reader.readAsText(file);
+  }
+  function openProjectPicker(){
+    function proceed(){ document.getElementById("projectFileInput").click(); }
+    if (state.shapes.length){
+      confirmModal("Open a project file? This replaces the current drawing.", "Open project", proceed);
+    } else { proceed(); }
+  }
+
+  // ---------- canvas size / zoom ----------
+  function applyCanvasSize(){
+    var w = Math.round(mToPx(state.canvasW)), h = Math.round(mToPx(state.canvasH));
+    svg.setAttribute("width", w); svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    document.getElementById("bgRect").setAttribute("width", w);
+    document.getElementById("bgRect").setAttribute("height", h);
+    applyZoom();
+  }
+  function applyZoom(){
+    svg.style.width = (svg.width.baseVal.value * zoom) + "px";
+    svg.style.height = (svg.height.baseVal.value * zoom) + "px";
+    zoomPill.textContent = Math.round(zoom * 100) + "%";
+  }
+  function fitToScreen(){
+    var r = canvasWrap.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var pxW = mToPx(state.canvasW), pxH = mToPx(state.canvasH);
+    var z = Math.min(r.width / pxW, r.height / pxH) * 0.92;
+    zoom = Math.max(0.03, Math.min(8, z));
+    applyZoom();
+    requestAnimationFrame(function(){
+      canvasWrap.scrollLeft = Math.max(0, (pxW*zoom - r.width) / 2);
+      canvasWrap.scrollTop = Math.max(0, (pxH*zoom - r.height) / 2);
+    });
+  }
+
+  // ---------- undo/redo ----------
+  function syncUndoButtons(){
+    document.getElementById("undoBtn").disabled = !undoStack.length;
+    document.getElementById("redoBtn").disabled = !redoStack.length;
+  }
+  function pushUndo(){
+    undoStack.push(JSON.stringify(state.shapes));
+    if (undoStack.length > 60) undoStack.shift();
+    redoStack = [];
+    syncUndoButtons();
+  }
+  function undo(){
+    if (!undoStack.length) return;
+    redoStack.push(JSON.stringify(state.shapes));
+    state.shapes = JSON.parse(undoStack.pop());
+    clearSelection(); syncUndoButtons(); render();
+  }
+  function redo(){
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(state.shapes));
+    state.shapes = JSON.parse(redoStack.pop());
+    clearSelection(); syncUndoButtons(); render();
+  }
+
+  // ---------- shapes ----------
+  function findShape(id){ for (var i=0;i<state.shapes.length;i++) if (state.shapes[i].id===id) return state.shapes[i]; return null; }
+  function groupMembers(gid){ if (!gid) return []; return state.shapes.filter(function(s){ return s.groupId === gid; }); }
+  function selectOnly(id){
+    var s = findShape(id);
+    if (s && s.groupId){ selectIds(groupMembers(s.groupId).map(function(m){ return m.id; })); return; }
+    state.selectedIds = id ? [id] : [];
+    state.selectedId = id || null;
+  }
+  function selectIds(ids){
+    state.selectedIds = ids.slice();
+    state.selectedId = ids.length ? ids[ids.length-1] : null;
+  }
+  function toggleInSelection(id){
+    var i = state.selectedIds.indexOf(id);
+    if (i === -1) state.selectedIds.push(id); else state.selectedIds.splice(i,1);
+    state.selectedId = state.selectedIds.length ? state.selectedIds[state.selectedIds.length-1] : null;
+  }
+  function clearSelection(){ state.selectedIds = []; state.selectedId = null; addMode = false; }
+  function selectionShapes(){ return state.selectedIds.map(findShape).filter(Boolean); }
+  function selectionGroupId(){
+    var shapes = selectionShapes();
+    if (!shapes.length) return null;
+    var gid = shapes[0].groupId || null;
+    if (!gid) return null;
+    for (var i=1;i<shapes.length;i++) if (shapes[i].groupId !== gid) return null;
+    return gid;
+  }
+  function deleteSelected(){
+    if (!state.selectedIds.length) return;
+    pushUndo();
+    var ids = state.selectedIds;
+    state.shapes = state.shapes.filter(function(s){ return ids.indexOf(s.id) === -1; });
+    clearSelection(); render(); scheduleSave();
+  }
+  function assembleSelection(){
+    if (state.selectedIds.length < 2) return;
+    pushUndo();
+    var gid = "g" + (state.nextId++);
+    selectionShapes().forEach(function(s){ s.groupId = gid; });
+    render(); scheduleSave();
+    toast("Assembled " + state.selectedIds.length + " parts.");
+  }
+  function ungroupSelection(){
+    var gid = selectionGroupId();
+    if (!gid) return;
+    pushUndo();
+    groupMembers(gid).forEach(function(s){ s.groupId = null; });
+    render(); scheduleSave();
+  }
+  function shapeLen(s){ return pxToM(Math.hypot(s.x2-s.x1, s.y2-s.y1)); }
+  function polylineLen(s){
+    var total = 0;
+    for (var i=1;i<s.points.length;i++) total += Math.hypot(s.points[i].x-s.points[i-1].x, s.points[i].y-s.points[i-1].y);
+    return pxToM(total);
+  }
+  function boundsOf(s){
+    if (s.type==="line" || s.type==="measure") return {x:Math.min(s.x1,s.x2), y:Math.min(s.y1,s.y2), w:Math.abs(s.x2-s.x1), h:Math.abs(s.y2-s.y1)};
+    if (s.type==="part") return {x:s.x-18, y:s.y-18, w:36, h:36};
+    if (s.type==="polyline"){
+      var xs = s.points.map(function(p){ return p.x; }), ys = s.points.map(function(p){ return p.y; });
+      var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs), minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
+      return {x:minX, y:minY, w:maxX-minX, h:maxY-minY};
+    }
+    if (s.type==="net" || s.type==="rect" || s.type==="triangle") return {x:s.x, y:s.y, w:s.w, h:s.h};
+    if (s.type==="circle") return {x:s.x-s.r, y:s.y-s.r, w:s.r*2, h:s.r*2};
+    if (s.type==="text") return {x:s.x-4, y:s.y-16, w:(s.text||"").length*8+8, h:22};
+    if (s.type==="marker") return {x:s.x-13, y:s.y-13, w:26, h:26};
+    return {x:0,y:0,w:0,h:0};
+  }
+  function combinedBounds(shapes){
+    if (!shapes.length) return {x:0,y:0,w:0,h:0};
+    var b0 = boundsOf(shapes[0]);
+    var minX=b0.x, minY=b0.y, maxX=b0.x+b0.w, maxY=b0.y+b0.h;
+    for (var i=1;i<shapes.length;i++){
+      var b = boundsOf(shapes[i]);
+      minX = Math.min(minX,b.x); minY = Math.min(minY,b.y);
+      maxX = Math.max(maxX,b.x+b.w); maxY = Math.max(maxY,b.y+b.h);
+    }
+    return {x:minX, y:minY, w:maxX-minX, h:maxY-minY};
+  }
+  function shapeName(s){
+    if (s.type === "line") return "Cable";
+    if (s.type === "measure") return "Measurement";
+    if (s.type === "part") return partLabel(s.partType);
+    if (s.type === "polyline") return "Cable run";
+    if (s.type === "net") return "Net";
+    if (s.type === "rect") return "Rectangle";
+    if (s.type === "circle") return "Circle";
+    if (s.type === "triangle") return "Triangle";
+    if (s.type === "text") return "Text";
+    if (s.type === "marker") return "Marker";
+    return s.type;
+  }
+
+  function addLenLabel(parent, x1,y1,x2,y2){
+    var mx=(x1+x2)/2, my=(y1+y2)/2;
+    var ang = Math.atan2(y2-y1, x2-x1) * 180/Math.PI;
+    if (ang > 90 || ang < -90) ang += 180;
+    var t = el("text", {x:mx, y:my-8, class:"dim-label", "text-anchor":"middle",
+      transform:"rotate(" + ang.toFixed(2) + " " + mx + " " + my + ")"}, parent);
+    t.textContent = fmtLen(pxToM(Math.hypot(x2-x1, y2-y1)));
+    return t;
+  }
+  function drawPinMark(parent, x, y, color){
+    el("circle", {cx:x, cy:y, r:6, fill:"none", stroke:color, "stroke-width":1.6}, parent);
+    el("circle", {cx:x, cy:y, r:2, fill:color}, parent);
+  }
+
+  function render(){
+    shapesLayer.innerHTML = ""; handlesLayer.innerHTML = "";
+    var selSet = {}; state.selectedIds.forEach(function(id){ selSet[id] = true; });
+    state.shapes.forEach(function(s){
+      var g = el("g", {"data-id": s.id}, shapesLayer);
+      if (s.type === "line"){
+        el("line", {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:s.color, "stroke-width":3, class:"shape-line"}, g);
+        el("line", {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:"transparent", "stroke-width":26, "pointer-events":"stroke"}, g);
+        addLenLabel(g, s.x1,s.y1,s.x2,s.y2);
+      } else if (s.type === "measure"){
+        el("line", {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:"transparent", "stroke-width":26, "pointer-events":"stroke"}, g);
+        drawPinMark(g, s.x1, s.y1, "var(--measure)");
+        drawPinMark(g, s.x2, s.y2, "var(--measure)");
+        addLenLabel(g, s.x1,s.y1,s.x2,s.y2).classList.add("measure-label");
+      } else if (s.type === "part"){
+        el("circle", {cx:s.x, cy:s.y, r:24, fill:"transparent", "pointer-events":"all"}, g);
+        var wrap = el("g", {transform:"translate(" + s.x + "," + s.y + ") rotate(" + (s.rot||0) + ")"}, g);
+        wrap.appendChild(buildPart(s.partType, s.color));
+      } else if (s.type === "polyline"){
+        var ptsAttr = s.points.map(function(p){ return p.x + "," + p.y; }).join(" ");
+        el("polyline", {points:ptsAttr, fill:"none", stroke:s.color, "stroke-width":3, "stroke-linejoin":"round", "stroke-linecap":"round", class:"shape-line"}, g);
+        el("polyline", {points:ptsAttr, fill:"none", stroke:"transparent", "stroke-width":26, "stroke-linejoin":"round", "pointer-events":"stroke"}, g);
+        for (var pi=1; pi<s.points.length; pi++) addLenLabel(g, s.points[pi-1].x, s.points[pi-1].y, s.points[pi].x, s.points[pi].y);
+      } else if (s.type === "net"){
+        el("rect", {x:s.x, y:s.y, width:s.w, height:s.h, fill:"url(#netHatch)", stroke:s.color, "stroke-width":2.5, style:"color:" + s.color}, g);
+        el("text", {x:s.x+s.w/2, y:s.y-8, class:"dim-label", "text-anchor":"middle"}, g).textContent = fmtLen(pxToM(s.w)) + " × " + fmtLen(pxToM(s.h));
+      } else if (s.type === "rect"){
+        el("rect", {x:s.x, y:s.y, width:s.w, height:s.h, fill:"none", stroke:s.color, "stroke-width":2.5}, g);
+        el("text", {x:s.x+s.w/2, y:s.y-8, class:"dim-label", "text-anchor":"middle"}, g).textContent = fmtLen(pxToM(s.w)) + " × " + fmtLen(pxToM(s.h));
+      } else if (s.type === "circle"){
+        el("circle", {cx:s.x, cy:s.y, r:s.r, fill:"none", stroke:s.color, "stroke-width":2.5}, g);
+      } else if (s.type === "triangle"){
+        var tx=s.x, ty=s.y, tw=s.w, th=s.h;
+        el("polygon", {points:(tx+tw/2)+","+ty+" "+(tx+tw)+","+(ty+th)+" "+tx+","+(ty+th), fill:"none", stroke:s.color, "stroke-width":2.5}, g);
+      } else if (s.type === "text"){
+        el("text", {x:s.x, y:s.y, fill:s.color, "font-family":'"IBM Plex Sans", sans-serif', "font-size":18, "font-weight":600}, g).textContent = s.text || "";
+      } else if (s.type === "marker"){
+        el("circle", {cx:s.x, cy:s.y, r:13, fill:"var(--panel)", stroke:s.color, "stroke-width":2}, g);
+        el("text", {x:s.x, y:s.y+4, "text-anchor":"middle", fill:s.color, "font-family":'"IBM Plex Mono", monospace', "font-size":11, "font-weight":700}, g).textContent = s.code || "?";
+      }
+      if (selSet[s.id]){
+        var b = boundsOf(s);
+        var groupSel = s.groupId && selectionGroupId();
+        el("rect", {x:b.x-8, y:b.y-8, width:b.w+16, height:b.h+16, class: groupSel ? "sel-group-outline" : "sel-outline"}, handlesLayer);
+        if (!addMode && state.selectedIds.length === 1){
+          if (s.type === "line" || s.type === "measure"){
+            [[s.x1,s.y1,"1"],[s.x2,s.y2,"2"]].forEach(function(h){
+              el("circle", {cx:h[0], cy:h[1], r:11, class:"handle", "data-handle":h[2], "data-id":s.id}, handlesLayer);
+            });
+          } else if (s.type === "polyline"){
+            s.points.forEach(function(p, idx){
+              el("circle", {cx:p.x, cy:p.y, r:11, class:"handle", "data-handle":"pt"+idx, "data-id":s.id}, handlesLayer);
+            });
+          } else if (s.type === "net" || s.type === "rect" || s.type === "triangle"){
+            [["tl",s.x,s.y],["tr",s.x+s.w,s.y],["bl",s.x,s.y+s.h],["br",s.x+s.w,s.y+s.h]].forEach(function(h){
+              el("circle", {cx:h[1], cy:h[2], r:11, class:"handle", "data-handle":h[0], "data-id":s.id}, handlesLayer);
+            });
+          } else if (s.type === "circle"){
+            el("circle", {cx:s.x+s.r, cy:s.y, r:11, class:"handle", "data-handle":"r", "data-id":s.id}, handlesLayer);
+          }
+        }
+      }
+    });
+    renderPropbar();
+    scheduleSave();
+  }
+
+  function renderPropbar(){
+    document.getElementById("addmodeHint").hidden = !addMode;
+    var shapes = selectionShapes();
+    if (!shapes.length){ propbar.hidden = true; propbar.innerHTML = ""; return; }
+    propbar.hidden = false;
+    propbar.innerHTML = "";
+
+    if (architectMode){
+      var alabel = document.createElement("span"); alabel.className = "plabel";
+      alabel.textContent = shapes.length === 1 ? shapeName(shapes[0]) : shapes.length + " parts";
+      propbar.appendChild(alabel);
+      return;
+    }
+
+    var gid = selectionGroupId();
+    var label = document.createElement("span"); label.className = "plabel";
+    label.textContent = addMode ? (state.selectedIds.length + " selected")
+      : shapes.length === 1 ? shapeName(shapes[0])
+      : (gid ? "Assembly · " : "") + shapes.length + " parts";
+    propbar.appendChild(label);
+
+    if (!addMode && shapes.length === 1){
+      var s = shapes[0];
+      if (s.type === "line" || s.type === "measure"){
+        var inp = document.createElement("input"); inp.type = "number"; inp.step = "0.01"; inp.value = shapeLen(s).toFixed(2);
+        inp.addEventListener("change", function(){
+          var v = parseFloat(inp.value); if (isNaN(v) || v <= 0) return;
+          pushUndo();
+          var ang = Math.atan2(s.y2-s.y1, s.x2-s.x1);
+          var lenPx = mToPx(v);
+          s.x2 = s.x1 + Math.cos(ang)*lenPx; s.y2 = s.y1 + Math.sin(ang)*lenPx;
+          render();
+        });
+        propbar.appendChild(inp);
+      } else if (s.type === "polyline"){
+        var inp2 = document.createElement("span"); inp2.className = "plabel"; inp2.style.fontWeight = "400"; inp2.style.color = "var(--ink-soft)";
+        inp2.textContent = fmtLen(polylineLen(s));
+        propbar.appendChild(inp2);
+      } else if (s.type === "text"){
+        var tinp = document.createElement("input"); tinp.type = "text"; tinp.value = s.text || ""; tinp.style.width = "9em";
+        tinp.addEventListener("change", function(){ pushUndo(); s.text = tinp.value; render(); });
+        propbar.appendChild(tinp);
+      } else if (s.type === "marker"){
+        var cinp = document.createElement("input"); cinp.type = "text"; cinp.value = s.code || ""; cinp.style.width = "5em";
+        cinp.addEventListener("change", function(){ pushUndo(); s.code = cinp.value.slice(0,4); render(); });
+        propbar.appendChild(cinp);
+      }
+    }
+
+    if (shapes.some(function(s){ return s.type !== "text"; }) || shapes.length > 1){
+      var swrow = document.createElement("div"); swrow.className = "swrow";
+      state.legend.forEach(function(item){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "sw"; b.style.background = item.color;
+        b.setAttribute("aria-pressed", String(shapes.length===1 && item.color === shapes[0].color));
+        b.addEventListener("click", function(){
+          pushUndo(); shapes.forEach(function(s){ s.color = item.color; }); state.color = item.color; render();
+        });
+        swrow.appendChild(b);
+      });
+      propbar.appendChild(swrow);
+    }
+
+    if (!addMode){
+      var addBtn = document.createElement("button"); addBtn.type = "button"; addBtn.className = "del-btn";
+      addBtn.style.borderColor = "var(--border)"; addBtn.style.color = "var(--ink)"; addBtn.title = "Add more to selection";
+      addBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>';
+      addBtn.addEventListener("click", function(){ addMode = true; render(); });
+      propbar.appendChild(addBtn);
+
+      if (gid){
+        var ungroupBtn = document.createElement("button"); ungroupBtn.type = "button"; ungroupBtn.className = "del-btn";
+        ungroupBtn.style.borderColor = "var(--border)"; ungroupBtn.style.color = "var(--ink)"; ungroupBtn.title = "Ungroup";
+        ungroupBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/></svg>';
+        ungroupBtn.addEventListener("click", ungroupSelection);
+        propbar.appendChild(ungroupBtn);
+      } else if (shapes.length >= 2){
+        var asmBtn = document.createElement("button"); asmBtn.type = "button"; asmBtn.className = "del-btn";
+        asmBtn.style.borderColor = "var(--accent)"; asmBtn.style.color = "var(--accent)"; asmBtn.title = "Assemble into one unit";
+        asmBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/><path d="M8 6h4M6 8v4M14 8v4M8 14h4"/></svg>';
+        asmBtn.addEventListener("click", assembleSelection);
+        propbar.appendChild(asmBtn);
+      }
+    } else {
+      var doneBtn = document.createElement("button"); doneBtn.type = "button"; doneBtn.className = "del-btn";
+      doneBtn.style.borderColor = "var(--accent)"; doneBtn.style.color = "var(--accent)"; doneBtn.title = "Done selecting";
+      doneBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
+      doneBtn.addEventListener("click", function(){ addMode = false; render(); });
+      propbar.appendChild(doneBtn);
+      if (shapes.length >= 2 && !gid){
+        var asmBtn2 = document.createElement("button"); asmBtn2.type = "button"; asmBtn2.className = "del-btn";
+        asmBtn2.style.borderColor = "var(--accent)"; asmBtn2.style.color = "var(--accent)"; asmBtn2.title = "Assemble into one unit";
+        asmBtn2.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="14" cy="6" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="14" cy="14" r="2.5"/><path d="M8 6h4M6 8v4M14 8v4M8 14h4"/></svg>';
+        asmBtn2.addEventListener("click", function(){ assembleSelection(); addMode = false; render(); });
+        propbar.appendChild(asmBtn2);
+      }
+    }
+
+    var del = document.createElement("button"); del.type = "button"; del.className = "del-btn"; del.title = "Delete";
+    del.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>';
+    del.addEventListener("click", deleteSelected);
+    propbar.appendChild(del);
+  }
+
+  // ---------- tools ----------
+  var DRAFT_TOOLS = {line:1, cablerun:1, net:1, shape:1};
+  function cancelDraft(){
+    if (draft && draft.type === "polyline" && draft.points.length){ /* discard in-progress cable run */ }
+    draft = null;
+    overlayLayer.innerHTML = "";
+    document.getElementById("drawbar").hidden = true;
+  }
+  function setTool(id){
+    if (architectMode && id !== "select") return;
+    cancelDraft();
+    state.tool = id;
+    pendingPart = (id === "part") ? pendingPart : null;
+    pendingShapeKind = (id === "shape") ? pendingShapeKind : null;
+    if (id !== "select") clearSelection();
+    Array.prototype.forEach.call(document.querySelectorAll("#toolbar .tool-btn[data-tool]"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.tool === id));
+    });
+    render();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#toolbar .tool-btn[data-tool]"), function(b){
+    b.addEventListener("click", function(){ setTool(b.dataset.tool); closeSheet(); });
+  });
+
+  // ---------- parts sheet ----------
+  document.getElementById("partsBtn").addEventListener("click", function(){
+    var body =
+      '<div class="sa-toggle"><div class="sa-text"><b>Self-assembly</b><small>Field-assembled instead of factory-swaged</small></div>' +
+      '<button type="button" class="switch" id="saSwitch" aria-pressed="' + String(pendingSA) + '"></button></div>' +
+      '<div class="parts-grid" id="partsGrid" style="grid-template-columns:repeat(3,1fr);"></div>';
+    openSheet("Parts", body, function(sheet, close){
+      var saSwitch = sheet.querySelector("#saSwitch");
+      var grid = sheet.querySelector("#partsGrid");
+      function paint(){
+        Array.prototype.forEach.call(grid.querySelectorAll(".part-btn"), function(btn){
+          var kind = pendingSA && SA_MAP[btn.dataset.kind] ? SA_MAP[btn.dataset.kind] : btn.dataset.kind;
+          btn.querySelector("svg").innerHTML = "";
+          btn.querySelector("svg").appendChild(buildPart(kind, "currentColor"));
+          btn.querySelector("span").textContent = partLabel(kind);
+        });
+      }
+      saSwitch.addEventListener("click", function(){
+        pendingSA = !pendingSA;
+        saSwitch.setAttribute("aria-pressed", String(pendingSA));
+        paint();
+      });
+      PART_DEFS.forEach(function(p){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "part-btn"; b.dataset.kind = p.kind;
+        var svgWrap = document.createElementNS(NS, "svg");
+        svgWrap.setAttribute("viewBox", "-20 -20 40 40");
+        svgWrap.appendChild(buildPart(p.kind, "currentColor"));
+        b.appendChild(svgWrap);
+        var span = document.createElement("span"); span.textContent = p.label; b.appendChild(span);
+        b.addEventListener("click", function(){
+          var kind = (pendingSA && SA_MAP[p.kind]) ? SA_MAP[p.kind] : p.kind;
+          pendingPart = kind;
+          setTool("part");
+          close();
+          toast('Tap the sheet to place "' + partLabel(kind) + '".');
+        });
+        grid.appendChild(b);
+      });
+    });
+  });
+
+  // ---------- shapes sheet ----------
+  var SHAPE_DEFS = [
+    {kind:"rect", label:"Rectangle"},
+    {kind:"circle", label:"Circle"},
+    {kind:"triangle", label:"Triangle"}
+  ];
+  function shapeIcon(kind){
+    if (kind === "rect") return '<rect x="4" y="4" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"/>';
+    if (kind === "circle") return '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/>';
+    return '<polygon points="12,4 20,20 4,20" fill="none" stroke="currentColor" stroke-width="1.6"/>';
+  }
+  document.getElementById("shapesBtn").addEventListener("click", function(){
+    var body = '<div class="parts-grid" id="shapesGrid" style="grid-template-columns:repeat(3,1fr);"></div>';
+    openSheet("Basic shapes", body, function(sheet, close){
+      var grid = sheet.querySelector("#shapesGrid");
+      SHAPE_DEFS.forEach(function(p){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "part-btn";
+        b.innerHTML = '<svg viewBox="0 0 24 24">' + shapeIcon(p.kind) + '</svg><span>' + p.label + '</span>';
+        b.addEventListener("click", function(){
+          pendingShapeKind = p.kind;
+          setTool("shape");
+          close();
+          toast('Drag on the sheet to draw a "' + p.label + '".');
+        });
+        grid.appendChild(b);
+      });
+    });
+  });
+
+  // ---------- color sheet ----------
+  document.getElementById("colorToolBtn").addEventListener("click", function(){
+    var body = '<div class="parts-grid" id="colGrid" style="grid-template-columns:repeat(4,1fr);"></div>';
+    openSheet("Color", body, function(sheet){
+      var grid = sheet.querySelector("#colGrid");
+      state.legend.forEach(function(item){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "part-btn";
+        b.innerHTML = '<span style="display:block;width:34px;height:34px;border-radius:9px;background:' + item.color + ';"></span><span>' + item.name + '</span>';
+        b.addEventListener("click", function(){
+          state.color = item.color;
+          document.getElementById("colDotIcon").style.background = item.color;
+          if (state.selectedIds.length){ pushUndo(); selectionShapes().forEach(function(s){ s.color = item.color; }); render(); }
+          closeSheet();
+        });
+        grid.appendChild(b);
+      });
+    });
+  });
+  document.getElementById("colDotIcon").style.background = state.color;
+
+  // ---------- menu sheet ----------
+  document.getElementById("menuBtn").addEventListener("click", function(){
+    var body =
+      '<div class="menu-row"><button type="button" class="full" id="mNew"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4v12M4 10h12" stroke-linecap="round"/></svg>New drawing</button></div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mSave"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h9l3 3v9H4z" stroke-linejoin="round"/><path d="M7 4v5h6V4" stroke-linejoin="round"/></svg>Save project</button></div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mOpen"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h5l2 2h7v8H3z" stroke-linejoin="round"/></svg>Open project</button></div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mFit"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h4M4 4v4M16 4h-4M16 4v4M4 16h4M4 16v-4M16 16h-4M16 16v-4" stroke-linecap="round"/></svg>Fit to screen</button></div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mArchitect"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 17 L7 5 L10 12 L13 6 L18 17" stroke-linejoin="round" stroke-linecap="round"/></svg><span id="mArchitectLabel">Architect view</span></button></div>' +
+      '<div class="menu-row danger-row"><button type="button" class="full" id="mClear"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Clear canvas</button></div>';
+    var s = openSheet("Menu", body, function(sheet, close){
+      sheet.querySelector("#mArchitectLabel").textContent = architectMode ? "Exit architect view" : "Architect view (browse only)";
+      sheet.querySelector("#mNew").addEventListener("click", function(){
+        close();
+        confirmModal("Start a new drawing? This clears the current sheet (Save project first if you want to keep it).", "New drawing", function(){
+          pushUndo();
+          state.shapes = []; clearSelection(); render();
+        });
+      });
+      sheet.querySelector("#mSave").addEventListener("click", function(){ close(); saveProject(); });
+      sheet.querySelector("#mOpen").addEventListener("click", function(){ close(); openProjectPicker(); });
+      sheet.querySelector("#mFit").addEventListener("click", function(){ close(); fitToScreen(); });
+      sheet.querySelector("#mArchitect").addEventListener("click", function(){
+        close();
+        architectMode = !architectMode;
+        clearSelection();
+        if (architectMode) setTool("select"); else render();
+        document.body.classList.toggle("architect-mode", architectMode);
+        toast(architectMode ? "Architect view on — browse only." : "Architect view off — editing enabled.");
+      });
+      sheet.querySelector("#mClear").addEventListener("click", function(){
+        close();
+        confirmModal("Clear the whole sheet? This can't be undone.", "Clear canvas", function(){
+          pushUndo();
+          state.shapes = []; clearSelection(); render();
+        });
+      });
+    });
+  });
+  document.getElementById("projectFileInput") || (function(){
+    var inp = document.createElement("input");
+    inp.type = "file"; inp.id = "projectFileInput"; inp.accept = ".json,.riglines,.riglines.json"; inp.hidden = true;
+    document.body.appendChild(inp);
+  })();
+  document.getElementById("projectFileInput").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (file) openProjectFile(file);
+  });
+  document.getElementById("undoBtn").addEventListener("click", undo);
+  document.getElementById("redoBtn").addEventListener("click", redo);
+
+  // ---------- pointer interaction (draw / select / measure / part) ----------
+  function toPoint(evt){
+    var pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    var ctm = svg.getScreenCTM().inverse();
+    var p = pt.matrixTransform(ctm);
+    return {x:p.x, y:p.y};
+  }
+  var multiTouchActive = false;
+
+  // ---------- cable run (polyline) draft helpers ----------
+  function drawPolylineGhost(){
+    overlayLayer.innerHTML = "";
+    if (!draft || draft.type !== "polyline") return;
+    var pts = draft.points;
+    if (pts.length >= 2){
+      var ptsAttr = pts.map(function(p){ return p.x + "," + p.y; }).join(" ");
+      el("polyline", {points:ptsAttr, fill:"none", stroke:state.color, "stroke-width":3, "stroke-dasharray":"7 5", class:"ghost"}, overlayLayer);
+      for (var i=1;i<pts.length;i++) addLenLabel(overlayLayer, pts[i-1].x, pts[i-1].y, pts[i].x, pts[i].y);
+    }
+    pts.forEach(function(p){ drawPinMark(overlayLayer, p.x, p.y, state.color); });
+  }
+  function renderDrawbar(){
+    var db = document.getElementById("drawbar");
+    if (!draft || draft.type !== "polyline"){ db.hidden = true; db.innerHTML = ""; return; }
+    db.hidden = false;
+    db.innerHTML = "";
+    var txt = document.createElement("span"); txt.className = "dtext";
+    txt.textContent = draft.points.length + (draft.points.length === 1 ? " point — tap to continue" : " points");
+    db.appendChild(txt);
+    var undoBtn = document.createElement("button"); undoBtn.type = "button"; undoBtn.title = "Remove last point";
+    undoBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5 L6 10 L12 15"/></svg>';
+    undoBtn.disabled = draft.points.length <= 1;
+    undoBtn.addEventListener("click", function(){
+      draft.points.pop();
+      if (!draft.points.length){ cancelDraft(); } else { renderDrawbar(); drawPolylineGhost(); }
+    });
+    db.appendChild(undoBtn);
+    var cancelBtn = document.createElement("button"); cancelBtn.type = "button"; cancelBtn.title = "Cancel";
+    cancelBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+    cancelBtn.addEventListener("click", cancelDraft);
+    db.appendChild(cancelBtn);
+    var doneBtn = document.createElement("button"); doneBtn.type = "button"; doneBtn.className = "primary"; doneBtn.title = "Finish cable run";
+    doneBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>';
+    doneBtn.disabled = draft.points.length < 2;
+    doneBtn.addEventListener("click", finishPolyline);
+    db.appendChild(doneBtn);
+  }
+  function finishPolyline(){
+    if (!draft || draft.points.length < 2){ cancelDraft(); return; }
+    pushUndo();
+    state.shapes.push({id:uid(), type:"polyline", points:draft.points.slice(), color:state.color});
+    selectOnly(state.shapes[state.shapes.length-1].id);
+    draft = null; overlayLayer.innerHTML = ""; document.getElementById("drawbar").hidden = true;
+    render();
+  }
+
+  svg.addEventListener("pointerdown", function(evt){
+    if (multiTouchActive) return;
+    var p = toPoint(evt);
+    var shapeTarget = evt.target.closest && evt.target.closest("[data-id]");
+
+    if (architectMode){
+      if (shapeTarget){
+        var as = findShape(shapeTarget.dataset.id);
+        if (as) toast(shapeName(as) + (as.type === "marker" && as.code ? " — " + as.code : ""));
+        return;
+      }
+      var wrapRectA = canvasWrap.getBoundingClientRect();
+      panState = {
+        startX: evt.clientX, startY: evt.clientY,
+        scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
+        scaleX: (wrapRectA.width / (canvasWrap.clientWidth || wrapRectA.width)) || 1,
+        scaleY: (wrapRectA.height / (canvasWrap.clientHeight || wrapRectA.height)) || 1
+      };
+      svg.setPointerCapture(evt.pointerId);
+      return;
+    }
+
+    var handleTarget = state.tool === "select" && !addMode && evt.target.closest && evt.target.closest("[data-handle]");
+    if (handleTarget){
+      var hs = findShape(handleTarget.dataset.id);
+      var which = handleTarget.dataset.handle;
+      var opp = null;
+      if (hs && (hs.type === "net" || hs.type === "rect" || hs.type === "triangle")){
+        if (which === "tl") opp = {x:hs.x+hs.w, y:hs.y+hs.h};
+        else if (which === "tr") opp = {x:hs.x, y:hs.y+hs.h};
+        else if (which === "bl") opp = {x:hs.x+hs.w, y:hs.y};
+        else opp = {x:hs.x, y:hs.y};
+      }
+      dragging = {mode:"handle", id: handleTarget.dataset.id, which: which, opp: opp, pushed:false};
+      svg.setPointerCapture(evt.pointerId);
+      return;
+    }
+
+    if (state.tool === "part"){
+      if (!pendingPart) return;
+      pushUndo();
+      state.shapes.push({id:uid(), type:"part", partType:pendingPart, x:p.x, y:p.y, rot:0, color:state.color});
+      selectOnly(state.shapes[state.shapes.length-1].id);
+      render();
+      return;
+    }
+
+    if (state.tool === "text"){
+      promptModal("Add text", "Label", "", function(val){
+        pushUndo();
+        state.shapes.push({id:uid(), type:"text", x:p.x, y:p.y, text:val, color:state.color});
+        selectOnly(state.shapes[state.shapes.length-1].id);
+        render();
+      });
+      return;
+    }
+
+    if (state.tool === "marker"){
+      promptModal("Add marker", "Code (e.g. T1)", "", function(val){
+        pushUndo();
+        state.shapes.push({id:uid(), type:"marker", x:p.x, y:p.y, code:val.slice(0,4), color:state.color});
+        selectOnly(state.shapes[state.shapes.length-1].id);
+        render();
+      });
+      return;
+    }
+
+    if (state.tool === "cablerun"){
+      if (!draft || draft.type !== "polyline"){ draft = {type:"polyline", points:[p]}; }
+      else { draft.points.push(p); }
+      renderDrawbar();
+      drawPolylineGhost();
+      return;
+    }
+
+    if (state.tool === "measure"){
+      if (!draft || draft.type !== "measure"){
+        draft = {type:"measure", x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+        overlayLayer.innerHTML = "";
+        drawPinMark(overlayLayer, p.x, p.y, "var(--measure)");
+      } else {
+        if (Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1) > 4){
+          pushUndo();
+          state.shapes.push({id:uid(), type:"measure", x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2, color:"var(--measure)"});
+        }
+        draft = null; overlayLayer.innerHTML = ""; render();
+      }
+      return;
+    }
+
+    if (state.tool === "select"){
+      if (addMode){
+        if (shapeTarget) { toggleInSelection(shapeTarget.dataset.id); render(); }
+        return;
+      }
+      if (shapeTarget){
+        var candidate = findShape(shapeTarget.dataset.id);
+        if (candidate){
+          if (state.selectedIds.indexOf(candidate.id) === -1) selectOnly(candidate.id);
+          var ids = state.selectedIds.slice();
+          var origMap = {};
+          ids.forEach(function(id){ var sh = findShape(id); if (sh) origMap[id] = JSON.parse(JSON.stringify(sh)); });
+          dragging = {mode:"move", ids:ids, startX:p.x, startY:p.y, origMap:origMap, pushed:false};
+          svg.setPointerCapture(evt.pointerId);
+          render();
+        }
+      } else {
+        clearSelection(); render();
+        var wrapRectPD = canvasWrap.getBoundingClientRect();
+        panState = {
+          startX: evt.clientX, startY: evt.clientY,
+          scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
+          scaleX: (wrapRectPD.width / (canvasWrap.clientWidth || wrapRectPD.width)) || 1,
+          scaleY: (wrapRectPD.height / (canvasWrap.clientHeight || wrapRectPD.height)) || 1
+        };
+        svg.setPointerCapture(evt.pointerId);
+      }
+      return;
+    }
+
+    if (state.tool === "net" || (state.tool === "shape" && pendingShapeKind)){
+      draft = {type: state.tool === "net" ? "net" : pendingShapeKind, x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+      svg.setPointerCapture(evt.pointerId);
+      return;
+    }
+
+    if (state.tool === "line"){
+      draft = {type:"line", x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+      svg.setPointerCapture(evt.pointerId);
+    }
+  });
+
+  svg.addEventListener("pointermove", function(evt){
+    if (multiTouchActive) return;
+    if (panState){
+      canvasWrap.scrollLeft = panState.scrollLeft - (evt.clientX - panState.startX) / panState.scaleX;
+      canvasWrap.scrollTop = panState.scrollTop - (evt.clientY - panState.startY) / panState.scaleY;
+      return;
+    }
+    var p = toPoint(evt);
+
+    if (dragging){
+      if (!dragging.pushed){ pushUndo(); dragging.pushed = true; }
+      if (dragging.mode === "handle"){
+        var s = findShape(dragging.id);
+        if (!s) return;
+        if (s.type === "line" || s.type === "measure"){
+          if (dragging.which === "1"){ s.x1 = p.x; s.y1 = p.y; } else { s.x2 = p.x; s.y2 = p.y; }
+        } else if (s.type === "polyline"){
+          var idx = parseInt(String(dragging.which).replace("pt",""), 10);
+          if (!isNaN(idx) && s.points[idx]) s.points[idx] = {x:p.x, y:p.y};
+        } else if (s.type === "net" || s.type === "rect" || s.type === "triangle"){
+          var opp = dragging.opp;
+          s.x = Math.min(p.x, opp.x); s.y = Math.min(p.y, opp.y);
+          s.w = Math.abs(p.x - opp.x); s.h = Math.abs(p.y - opp.y);
+        } else if (s.type === "circle"){
+          s.r = Math.max(4, Math.hypot(p.x - s.x, p.y - s.y));
+        }
+      } else if (dragging.mode === "move"){
+        var dx = p.x - dragging.startX, dy = p.y - dragging.startY;
+        dragging.ids.forEach(function(id){
+          var sh = findShape(id), o = dragging.origMap[id];
+          if (!sh || !o) return;
+          if (sh.type === "line" || sh.type === "measure"){ sh.x1=o.x1+dx; sh.y1=o.y1+dy; sh.x2=o.x2+dx; sh.y2=o.y2+dy; }
+          else if (sh.type === "part" || sh.type === "text" || sh.type === "marker" || sh.type === "circle"){ sh.x=o.x+dx; sh.y=o.y+dy; }
+          else if (sh.type === "net" || sh.type === "rect" || sh.type === "triangle"){ sh.x=o.x+dx; sh.y=o.y+dy; }
+          else if (sh.type === "polyline"){ sh.points = o.points.map(function(pt){ return {x:pt.x+dx, y:pt.y+dy}; }); }
+        });
+      }
+      render();
+      return;
+    }
+
+    if (!draft) return;
+    if (draft.type === "polyline") return;
+    overlayLayer.innerHTML = "";
+    if (draft.type === "line"){
+      draft.x2 = p.x; draft.y2 = p.y;
+      el("line", {x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2, stroke:state.color, "stroke-width":3, "stroke-dasharray":"7 5", class:"ghost"}, overlayLayer);
+      addLenLabel(overlayLayer, draft.x1,draft.y1,draft.x2,draft.y2);
+    } else if (draft.type === "measure"){
+      draft.x2 = p.x; draft.y2 = p.y;
+      drawPinMark(overlayLayer, draft.x1, draft.y1, "var(--measure)");
+      drawPinMark(overlayLayer, draft.x2, draft.y2, "var(--measure)");
+      addLenLabel(overlayLayer, draft.x1,draft.y1,draft.x2,draft.y2).classList.add("measure-label");
+    } else if (draft.type === "circle"){
+      draft.x2 = p.x; draft.y2 = p.y;
+      var r = Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1);
+      el("circle", {cx:draft.x1, cy:draft.y1, r:r, fill:"none", stroke:state.color, "stroke-width":2.5, "stroke-dasharray":"7 5", class:"ghost"}, overlayLayer);
+    } else if (draft.type === "net" || draft.type === "rect" || draft.type === "triangle"){
+      draft.x2 = p.x; draft.y2 = p.y;
+      var bx = Math.min(draft.x1,draft.x2), by = Math.min(draft.y1,draft.y2), bw = Math.abs(draft.x2-draft.x1), bh = Math.abs(draft.y2-draft.y1);
+      if (draft.type === "triangle"){
+        el("polygon", {points:(bx+bw/2)+","+by+" "+(bx+bw)+","+(by+bh)+" "+bx+","+(by+bh), fill:"none", stroke:state.color, "stroke-width":2.5, "stroke-dasharray":"7 5", class:"ghost"}, overlayLayer);
+      } else {
+        el("rect", {x:bx, y:by, width:bw, height:bh, fill: draft.type==="net" ? "url(#netHatch)" : "none", stroke:state.color, "stroke-width":2.5, "stroke-dasharray":"7 5", class:"ghost", style:"color:"+state.color}, overlayLayer);
+      }
+      el("text", {x:bx+bw/2, y:by-8, class:"dim-label", "text-anchor":"middle"}, overlayLayer).textContent = fmtLen(pxToM(bw)) + " × " + fmtLen(pxToM(bh));
+    }
+  });
+
+  window.addEventListener("pointerup", function(evt){
+    if (panState){ panState = null; return; }
+    if (dragging){ dragging = null; render(); scheduleSave(); return; }
+    if (!draft || draft.type === "polyline") return;
+    if (draft.type === "line"){
+      if (Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1) > 4){
+        pushUndo();
+        state.shapes.push({id:uid(), type:"line", x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2, color:state.color});
+        selectOnly(state.shapes[state.shapes.length-1].id);
+      }
+      draft = null; overlayLayer.innerHTML = ""; render();
+    } else if (draft.type === "circle"){
+      var r2 = Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1);
+      if (r2 > 4){
+        pushUndo();
+        state.shapes.push({id:uid(), type:"circle", x:draft.x1, y:draft.y1, r:r2, color:state.color});
+        selectOnly(state.shapes[state.shapes.length-1].id);
+      }
+      draft = null; overlayLayer.innerHTML = ""; render();
+    } else if (draft.type === "net" || draft.type === "rect" || draft.type === "triangle"){
+      var bx = Math.min(draft.x1,draft.x2), by = Math.min(draft.y1,draft.y2), bw = Math.abs(draft.x2-draft.x1), bh = Math.abs(draft.y2-draft.y1);
+      if (bw > 4 && bh > 4){
+        pushUndo();
+        state.shapes.push({id:uid(), type:draft.type, x:bx, y:by, w:bw, h:bh, color:state.color});
+        selectOnly(state.shapes[state.shapes.length-1].id);
+      }
+      draft = null; overlayLayer.innerHTML = ""; render();
+    }
+  });
+
+  // ---------- two-finger pinch zoom + pan ----------
+  var activePointers = {};
+  var pinchState = null;
+  canvasWrap.addEventListener("pointerdown", function(e){
+    activePointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+    var ids = Object.keys(activePointers);
+    if (ids.length >= 2){
+      multiTouchActive = true;
+      draft = null; dragging = null; panState = null; overlayLayer.innerHTML = ""; document.getElementById("drawbar").hidden = true;
+      var p1 = activePointers[ids[0]], p2 = activePointers[ids[1]];
+      pinchState = {
+        startDist: Math.hypot(p2.x-p1.x, p2.y-p1.y) || 1,
+        startZoom: zoom,
+        startMidX:(p1.x+p2.x)/2, startMidY:(p1.y+p2.y)/2,
+        startScrollL: canvasWrap.scrollLeft, startScrollT: canvasWrap.scrollTop
+      };
+    }
+  }, {capture:true});
+  canvasWrap.addEventListener("pointermove", function(e){
+    if (!activePointers[e.pointerId]) return;
+    activePointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+    var ids = Object.keys(activePointers);
+    if (ids.length >= 2 && pinchState){
+      var p1 = activePointers[ids[0]], p2 = activePointers[ids[1]];
+      var dist = Math.hypot(p2.x-p1.x, p2.y-p1.y) || 1;
+      var midX = (p1.x+p2.x)/2, midY = (p1.y+p2.y)/2;
+      var newZoom = Math.max(0.03, Math.min(8, pinchState.startZoom * (dist/pinchState.startDist)));
+      var ratio = newZoom / zoom;
+      zoom = newZoom;
+      applyZoom();
+      var dxMid = midX - pinchState.startMidX, dyMid = midY - pinchState.startMidY;
+      canvasWrap.scrollLeft = pinchState.startScrollL*ratio - dxMid;
+      canvasWrap.scrollTop = pinchState.startScrollT*ratio - dyMid;
+    }
+  }, {capture:true});
+  function releasePointer(e){
+    delete activePointers[e.pointerId];
+    var ids = Object.keys(activePointers);
+    if (ids.length < 2) pinchState = null;
+    if (ids.length === 0) multiTouchActive = false;
+  }
+  window.addEventListener("pointerup", releasePointer, {capture:true});
+  window.addEventListener("pointercancel", releasePointer, {capture:true});
+
+  // desktop trackpad convenience (harmless on touch devices)
+  canvasWrap.addEventListener("wheel", function(e){
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    var rect = canvasWrap.getBoundingClientRect();
+    var offsetX = e.clientX - rect.left, offsetY = e.clientY - rect.top;
+    var contentX = canvasWrap.scrollLeft + offsetX, contentY = canvasWrap.scrollTop + offsetY;
+    var oldZoom = zoom;
+    zoom = Math.max(0.03, Math.min(8, zoom * Math.exp(-e.deltaY * 0.0018)));
+    applyZoom();
+    var ratio = zoom / oldZoom;
+    canvasWrap.scrollLeft = contentX * ratio - offsetX;
+    canvasWrap.scrollTop = contentY * ratio - offsetY;
+  }, {passive:false});
+  window.addEventListener("resize", function(){ /* keep current view on resize */ });
+
+  // ---------- boot ----------
+  load();
+  applyCanvasSize();
+  syncUndoButtons();
+  render();
+  requestAnimationFrame(fitToScreen);
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
+</script>
