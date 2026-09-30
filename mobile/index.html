@@ -903,10 +903,11 @@
     state.shapes = state.shapes.filter(function(s){ return ids.indexOf(s.id) === -1; });
     clearSelection(); render(); scheduleSave();
   }
+  function newGroupId(){ return "g" + (state.nextId++); }
   function assembleSelection(){
     if (state.selectedIds.length < 2) return;
     pushUndo();
-    var gid = "g" + (state.nextId++);
+    var gid = newGroupId();
     selectionShapes().forEach(function(s){ s.groupId = gid; });
     render(); scheduleSave();
     toast("Assembled " + state.selectedIds.length + " parts.");
@@ -1447,9 +1448,11 @@
     if (state.tool === "part"){
       if (!pendingPart) return;
       pushUndo();
-      state.shapes.push({id:uid(), type:"part", partType:pendingPart, x:p.x, y:p.y, rot:0, color:state.color});
+      var isSA = !!SA_MAP_REV[pendingPart];
+      state.shapes.push({id:uid(), type:"part", partType:pendingPart, x:p.x, y:p.y, rot:0, color:state.color, groupId: isSA ? newGroupId() : null});
       selectOnly(state.shapes[state.shapes.length-1].id);
       render();
+      if (isSA) toast("Placed as a self-assembly unit.");
       return;
     }
 
