@@ -1656,6 +1656,45 @@
     } else if (kind === "slidingdisc"){
       el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
       el("circle", Object.assign({cx:0, cy:0, r:9, fill:color, opacity:0.25}, s, {"stroke-width":1}), g);
+    } else if (kind === "crossclampGG"){
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:2.4}, s), g);
+    } else if (kind === "horizontalrod"){
+      el("line", Object.assign({x1:-18, y1:0, x2:18, y2:0, "stroke-width":2.4}, s), g);
+      el("line", Object.assign({x1:-18, y1:-3, x2:-18, y2:3}, s), g);
+      el("line", Object.assign({x1:18, y1:-3, x2:18, y2:3}, s), g);
+    } else if (kind === "rodconnector"){
+      el("line", Object.assign({x1:-18, y1:0, x2:18, y2:0}, s), g);
+      el("rect", Object.assign({x:-6, y:-4, width:12, height:8, rx:1.5}, s), g);
+    } else if (kind === "clampring"){
+      el("circle", Object.assign({cx:0, cy:0, r:9}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:3.5}, s), g);
+      el("line", Object.assign({x1:-13, y1:-9, x2:-9, y2:-9}, s), g);
+      el("line", Object.assign({x1:9, y1:9, x2:13, y2:9}, s), g);
+      el("circle", Object.assign({cx:-13, cy:-9, r:1}, s, {fill:color}), g);
+      el("circle", Object.assign({cx:13, cy:9, r:1}, s, {fill:color}), g);
+    } else if (kind === "postfittingWebnet"){
+      el("path", Object.assign({d:"M -6 -13 A 13 13 0 1 0 -6 13", fill:"none"}, s), g);
+      el("line", Object.assign({x1:-6, y1:-13, x2:2, y2:-13}, s), g);
+      el("line", Object.assign({x1:-6, y1:13, x2:2, y2:13}, s), g);
+      el("circle", Object.assign({cx:0, cy:-13, r:1.1}, s, {fill:color}), g);
+      el("circle", Object.assign({cx:0, cy:13, r:1.1}, s, {fill:color}), g);
+    } else if (kind === "ropeguideOverload"){
+      var hexPts3 = [];
+      for (var hk=0; hk<6; hk++){
+        var hang3 = hk*Math.PI/3 - Math.PI/6;
+        hexPts3.push((7*Math.cos(hang3)).toFixed(2)+","+(7*Math.sin(hang3)).toFixed(2));
+      }
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("polygon", Object.assign({points:hexPts3.join(" ")}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:2.5}, s), g);
+      el("path", Object.assign({d:"M -4 11 L -1.5 8 L 1.5 13 L 4 10", fill:"none"}, s), g);
+    } else if (kind === "spacerWebnet" || kind === "spacerGT"){
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("rect", Object.assign({x:-5, y:-8, width:10, height:16, rx:2}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:1.4}, s, {fill:color}), g);
     }
     return g;
   }
@@ -1715,12 +1754,20 @@
     {kind:"standoffWebnet", label:"Standoff, Webnet", cat:"GreenWebnet"},
     {kind:"holderMulti", label:"Clevis holder, several cables", cat:"GreenGuide"},
     {kind:"holderSingle", label:"Clevis holder, single cable", cat:"GreenGuide"},
-    {kind:"ropeguide", label:"Rope guide, flat", cat:"GreenGuide"},
+    {kind:"ropeguide", label:"Rope guide, GreenGuide", cat:"GreenGuide"},
     {kind:"standoffGG", label:"Standoff, GreenGuide", cat:"GreenGuide"},
-    {kind:"spacerwasher", label:"Spacer washer", cat:"GreenGuide"},
+    {kind:"spacerwasher", label:"Spacer, GreenGuide", cat:"GreenGuide"},
+    {kind:"crossclampGG", label:"Cross clamp, GreenGuide", cat:"GreenGuide"},
     {kind:"threadadapter", label:"Threaded adapter", cat:"GreenGuide"},
     {kind:"standoffGT", label:"Standoff, GreenTrellis", cat:"GreenTrellis"},
-    {kind:"railconnector", label:"Section connector", cat:"GreenTrellis"},
+    {kind:"railconnector", label:"Section connector, GreenTrellis", cat:"GreenTrellis"},
+    {kind:"clampring", label:"Clamp ring light", cat:"GreenTrellis"},
+    {kind:"spacerGT", label:"Spacer, GreenTrellis", cat:"GreenTrellis"},
+    {kind:"postfittingWebnet", label:"Post fitting, Webnet Frame", cat:"GreenWebnet"},
+    {kind:"ropeguideOverload", label:"Rope guide, overload protection", cat:"GreenWebnet"},
+    {kind:"spacerWebnet", label:"Spacer, Webnet", cat:"GreenWebnet"},
+    {kind:"horizontalrod", label:"Horizontal rod", cat:"Shared / cross-system components"},
+    {kind:"rodconnector", label:"Connecting sleeve, horizontal rod", cat:"Shared / cross-system components"},
     {kind:"endcap", label:"Wire rope end cap", cat:"Shared / cross-system components"},
     {kind:"ropeclip", label:"Rope clip (PE)", cat:"Shared / cross-system components"},
     {kind:"adjustring", label:"Adjustment ring", cat:"Shared / cross-system components"},
@@ -2997,10 +3044,10 @@
       var frameBorder = Math.max(mToPx(0.03), 4);
       state.shapes.push({id:uid(), type:"rect", x:ox, y:oy, w:wPx, h:hPx, color:"#2a8c82"});
       state.shapes.push({id:uid(), type:"net", x:ox+frameBorder, y:oy+frameBorder, w:wPx-2*frameBorder, h:hPx-2*frameBorder, mesh:0.06, color:"#2a8c82"});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox+wPx, y:oy, rot:90, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox, y:oy+hPx, rot:270, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox+wPx, y:oy, rot:90, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox, y:oy+hPx, rot:270, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
       state.shapes.push({id:uid(), type:"line", x1:ox+wPx*0.2, y1:oy+hPx, x2:ox+wPx*0.5, y2:oy+hPx*0.3, color:"#6e5aa6"});
       state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet Frame " + wM + "×" + hM + " m — Ø26.9mm tube, standoff-mounted", color:"#726a5b"});
     }
