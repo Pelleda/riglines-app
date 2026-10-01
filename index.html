@@ -2984,19 +2984,29 @@
     var wPx = mToPx(wM), hPx = mToPx(hM);
     var startIdx = state.shapes.length;
     if (kind === "webnet"){
-      // Webnet: clevis holder plates spread the mesh corners from the wall, standoffs run the perimeter,
-      // rope assemblies tension the bottom corners — per the real GreenSolutions catalog (pp.36-47).
+      // Webnet: welded mesh panel, 0/90/180-degree clevis connectors at the perimeter corners,
+      // rope guides with overload protection along the top run, spacers standing the mesh off
+      // the wall down each side — per the real BOM (Webnet System EN technical p.38): clevis
+      // connectors 0/90/180deg, 19x rope guide w/ overload protection, 25x spacers total.
       state.shapes.push({id:uid(), type:"net", x:ox, y:oy, w:wPx, h:hPx, mesh:0.06, color:"#2a8c82"});
-      state.shapes.push({id:uid(), type:"part", partType:"clevisholder90", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"clevisholder90", x:ox+wPx, y:oy, rot:90, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffWebnet", x:ox, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffWebnet", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"clevisholder180", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"clevisholder180", x:ox+wPx, y:oy, rot:180, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"clevisholder90", x:ox, y:oy+hPx, rot:270, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"clevisholder90", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
+      var wTop = Math.max(2, Math.round(wPx / mToPx(1.0)));
+      for (var wi=1; wi<wTop; wi++){
+        state.shapes.push({id:uid(), type:"part", partType:"ropeguideOverload", x:ox+wPx*wi/wTop, y:oy, rot:0, color:"#a6437e", opacity:1});
+      }
+      state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ox, y:oy+hPx*0.5, rot:90, color:"#c68a1e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ox+wPx, y:oy+hPx*0.5, rot:270, color:"#c68a1e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:ox, y:oy+hPx+18, rot:90, color:"#6e5aa6", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:ox+wPx, y:oy+hPx+18, rot:90, color:"#6e5aa6", opacity:1});
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet greening frame " + wM + "×" + hM + " m — Ø2mm mesh, clevis holders + standoffs", color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet " + wM + "×" + hM + " m — clevis corners, rope guides along the top, spacers off the wall", color:"#726a5b"});
     } else if (kind === "trellis"){
-      // GreenTrellis: angle-section rails top/bottom (held off the wall by standoffs), vertical ropes
-      // cross-clamped to each rail at a 200mm grid, tensioned at the bottom — per the real GreenSolutions catalog.
+      // GreenTrellis: rails top/bottom (standoff-mounted), vertical ropes cross-clamped to each
+      // rail at a 200mm grid, tensioned at the bottom with a Clamp ring light — the real BOM's
+      // actual tensioning hardware (30863-0400); the system is calculated and documented
+      // without turnbuckles. Optional horizontal rods add intermediate rail ties.
       var barH = Math.max(mToPx(0.02), 3);
       state.shapes.push({id:uid(), type:"rect", x:ox, y:oy, w:wPx, h:barH, color:"#2a8c82"});
       state.shapes.push({id:uid(), type:"rect", x:ox, y:oy+hPx-barH, w:wPx, h:barH, color:"#2a8c82"});
@@ -3008,48 +3018,59 @@
         var cx = ox + i*step;
         state.shapes.push({id:uid(), type:"line", x1:cx, y1:oy+barH, x2:cx, y2:oy+hPx-barH, color:"#2b6cb5"});
         state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:cx, y:oy+barH, rot:0, color:"#c68a1e", opacity:1});
-        state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:cx, y:oy+hPx-barH/2, rot:90, color:"#6e5aa6", opacity:1});
+        state.shapes.push({id:uid(), type:"part", partType:"clampring", x:cx, y:oy+hPx-barH/2, rot:90, color:"#6e5aa6", opacity:1});
       }
       var trellisHCount = Math.max(0, Math.round(opts.hCount || 0));
       for (var hi=1; hi<=trellisHCount; hi++){
         var hy = oy + barH + (hPx - 2*barH) * hi / (trellisHCount+1);
-        state.shapes.push({id:uid(), type:"line", x1:ox, y1:hy, x2:ox+wPx, y2:hy, color:"#2a8c82"});
+        state.shapes.push({id:uid(), type:"rect", x:ox, y:hy-barH/2, w:wPx, h:barH, color:"#2a8c82"});
         for (var vi=0; vi<=count; vi++){
           state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:ox+vi*step, y:hy, rot:0, color:"#c68a1e", opacity:1});
         }
       }
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenTrellis " + wM + "×" + hM + " m — " + count + " cables o.c.", color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenTrellis " + wM + "×" + hM + " m — " + count + " cables o.c., clamp ring tensioning", color:"#726a5b"});
     } else if (kind === "greenguide"){
-      // GreenGuide: wall standoffs at top, vertical ropes tensioned at bottom, cross-clamped to horizontal ties.
+      // GreenGuide: wall standoffs at top run each vertical rope; horizontal rods tie the ropes
+      // together at 1+ levels, held by GreenGuide cross clamps, with a Spacer (GreenGuide)
+      // standing each rope off the facade at every tie level; a wire rope end cap finishes the
+      // bottom — per the real BOM (GreenGuide System EN technical p.19-21), which explicitly
+      // excludes turnbuckles from its calculation.
       var ggCount = opts.vCount ? Math.max(1, Math.round(opts.vCount)) : Math.max(2, Math.round(wPx / mToPx(0.3)));
       var ggStep = wPx / ggCount;
       var ggHCount = Math.max(1, Math.round(opts.hCount != null ? opts.hCount : 1));
       var tieYs = [];
       for (var hi2=1; hi2<=ggHCount; hi2++){ tieYs.push(oy + hPx * hi2 / (ggHCount+1)); }
+      var ggRodH = Math.max(mToPx(0.012), 2);
       tieYs.forEach(function(tieY){
-        state.shapes.push({id:uid(), type:"line", x1:ox, y1:tieY, x2:ox+wPx, y2:tieY, color:"#3f7d4f"});
+        state.shapes.push({id:uid(), type:"rect", x:ox, y:tieY-ggRodH/2, w:wPx, h:ggRodH, color:"#3f7d4f"});
       });
       for (var gi=0; gi<=ggCount; gi++){
         var gx = ox + gi*ggStep;
-        state.shapes.push({id:uid(), type:"line", x1:gx, y1:oy, x2:gx, y2:oy+hPx, color:"#3f7d4f"});
+        state.shapes.push({id:uid(), type:"line", x1:gx, y1:oy, x2:gx, y2:oy+hPx, color:"#2b6cb5"});
         state.shapes.push({id:uid(), type:"part", partType:"standoffGG", x:gx, y:oy, rot:0, color:"#a6437e", opacity:1});
         tieYs.forEach(function(tieY){
-          state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:gx, y:tieY, rot:0, color:"#c68a1e", opacity:1});
+          state.shapes.push({id:uid(), type:"part", partType:"spacerwasher", x:gx-14, y:tieY, rot:0, color:"#c68a1e", opacity:1});
+          state.shapes.push({id:uid(), type:"part", partType:"crossclampGG", x:gx, y:tieY, rot:90, color:"#c68a1e", opacity:1});
         });
-        state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:gx, y:oy+hPx, rot:90, color:"#6e5aa6", opacity:1});
+        state.shapes.push({id:uid(), type:"part", partType:"endcap", x:gx, y:oy+hPx, rot:90, color:"#6e5aa6", opacity:1});
       }
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenGuide rope grid " + wM + "×" + hM + " m — " + ggCount + " ropes, " + ggHCount + " tie" + (ggHCount===1?"":"s"), color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenGuide " + wM + "×" + hM + " m — " + ggCount + " ropes, " + ggHCount + " rod tie" + (ggHCount===1?"":"s"), color:"#726a5b"});
     } else if (kind === "webnetframe"){
-      // Webnet Frame: prefab closed tube frame pre-strung with mesh, standoff-mounted with a rear strut.
+      // Webnet Frame: prefab welded tube frame pre-strung with Webnet micro mesh, mounted via a
+      // Post fitting + Spacer (GreenTrellis) at each corner — per the real BOM (Webnet Frames EN
+      // Classic): 8x post fitting, 4x spacer. No strut or diagonal brace is documented.
       var frameBorder = Math.max(mToPx(0.03), 4);
       state.shapes.push({id:uid(), type:"rect", x:ox, y:oy, w:wPx, h:hPx, color:"#2a8c82"});
       state.shapes.push({id:uid(), type:"net", x:ox+frameBorder, y:oy+frameBorder, w:wPx-2*frameBorder, h:hPx-2*frameBorder, mesh:0.06, color:"#2a8c82"});
       state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"spacerGT", x:ox+16, y:oy+16, rot:90, color:"#c68a1e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox+wPx, y:oy, rot:90, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"spacerGT", x:ox+wPx-16, y:oy+16, rot:90, color:"#c68a1e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox, y:oy+hPx, rot:270, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"spacerGT", x:ox+16, y:oy+hPx-16, rot:90, color:"#c68a1e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"line", x1:ox+wPx*0.2, y1:oy+hPx, x2:ox+wPx*0.5, y2:oy+hPx*0.3, color:"#6e5aa6"});
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet Frame " + wM + "×" + hM + " m — Ø26.9mm tube, standoff-mounted", color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"part", partType:"spacerGT", x:ox+wPx-16, y:oy+hPx-16, rot:90, color:"#c68a1e", opacity:1});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet Frame " + wM + "×" + hM + " m — post fitting + spacer per corner, Ø26.9mm tube", color:"#726a5b"});
     }
     var gid = newGroupId();
     state.groups.push({id:gid, name: templateName(kind) + " " + wM + "×" + hM + "m"});
