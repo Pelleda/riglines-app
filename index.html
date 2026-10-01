@@ -1372,6 +1372,16 @@
     el("path", Object.assign({d:"M -8 -16 C -10 -4 -6 2 0 4 C 6 2 10 -4 8 -16"}, s), g);
     el("line", Object.assign({x1:-6.5, y1:-8, x2:6.5, y2:-8}, s), g);
   }
+  // Net-grid cross clamp: a round hub with several rod stubs radiating out, matching the
+  // real Jakob clamp (a disc with 6-8 rods passing through it), not a square bracket.
+  function drawHubClamp(g, s, color){
+    el("circle", Object.assign({cx:0, cy:0, r:8}, s), g);
+    [0,60,120,180,240,300].forEach(function(deg){
+      var rad = deg*Math.PI/180;
+      el("line", Object.assign({x1:7*Math.cos(rad), y1:7*Math.sin(rad), x2:16*Math.cos(rad), y2:16*Math.sin(rad)}, s), g);
+    });
+    el("circle", Object.assign({cx:0, cy:0, r:2}, s, {fill:color}), g);
+  }
   function buildPart(kind, color){
     var g = el("g", {});
     var s = {fill:"none", stroke:color, "stroke-width":1.6, "stroke-linecap":"round"};
@@ -1530,10 +1540,7 @@
       [-12,-4,4,12].forEach(function(ry){ el("circle", Object.assign({cx:0, cy:ry, r:1}, s), g); });
       el("path", Object.assign({d:"M 4 -3 L 11 -3 L 11 3 L 4 3"}, s), g);
     } else if (kind === "crossclamp"){
-      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
-      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
-      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
-      [[-3,-3],[3,3]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1}, s), g); });
+      drawHubClamp(g, s, color);
     } else if (kind === "ropeclamp"){
       el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
       el("rect", Object.assign({x:-5, y:-7, width:10, height:14, rx:3}, s), g);
@@ -1561,16 +1568,17 @@
       el("path", Object.assign({d:"M -2 -6 L -7 8 L 7 8 L 2 -6 Z"}, s), g);
       el("line", Object.assign({x1:0, y1:8, x2:0, y2:16}, s), g);
     } else if (kind === "spacer"){
-      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
-      el("rect", Object.assign({x:-5, y:-8, width:10, height:16, rx:2}, s), g);
+      el("circle", Object.assign({cx:0, cy:-13, r:6}, s), g);
+      el("line", Object.assign({x1:0, y1:-7, x2:0, y2:13}, s), g);
+      el("circle", Object.assign({cx:0, cy:13, r:2.2}, s), g);
     } else if (kind === "standoffGG"){
       el("circle", Object.assign({cx:0, cy:-14, r:6}, s), g);
       el("line", Object.assign({x1:0, y1:-8, x2:0, y2:12}, s), g);
       el("circle", Object.assign({cx:0, cy:14, r:2.5}, s), g);
-    } else if (kind === "spacerwasher"){
-      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
-      el("circle", Object.assign({cx:0, cy:0, r:7}, s), g);
-      el("circle", Object.assign({cx:0, cy:0, r:2}, s), g);
+    } else if (kind === "spacerwasher" || kind === "spacerWebnet" || kind === "spacerGT"){
+      el("circle", Object.assign({cx:0, cy:-13, r:6}, s), g);
+      el("line", Object.assign({x1:0, y1:-7, x2:0, y2:13}, s), g);
+      el("circle", Object.assign({cx:0, cy:13, r:2.2}, s), g);
     } else if (kind === "holderMulti"){
       el("circle", Object.assign({cx:0, cy:0, r:14}, s), g);
       el("circle", Object.assign({cx:-3.4, cy:-9.1, r:2.2}, s), g);
@@ -1657,10 +1665,7 @@
       el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
       el("circle", Object.assign({cx:0, cy:0, r:9, fill:color, opacity:0.25}, s, {"stroke-width":1}), g);
     } else if (kind === "crossclampGG"){
-      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
-      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
-      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
-      el("circle", Object.assign({cx:0, cy:0, r:2.4}, s), g);
+      drawHubClamp(g, s, color);
     } else if (kind === "horizontalrod"){
       el("line", Object.assign({x1:-18, y1:0, x2:18, y2:0, "stroke-width":2.4}, s), g);
       el("line", Object.assign({x1:-18, y1:-3, x2:-18, y2:3}, s), g);
@@ -1682,19 +1687,13 @@
       el("circle", Object.assign({cx:0, cy:-13, r:1.1}, s, {fill:color}), g);
       el("circle", Object.assign({cx:0, cy:13, r:1.1}, s, {fill:color}), g);
     } else if (kind === "ropeguideOverload"){
-      var hexPts3 = [];
-      for (var hk=0; hk<6; hk++){
-        var hang3 = hk*Math.PI/3 - Math.PI/6;
-        hexPts3.push((7*Math.cos(hang3)).toFixed(2)+","+(7*Math.sin(hang3)).toFixed(2));
-      }
-      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
-      el("polygon", Object.assign({points:hexPts3.join(" ")}, s), g);
-      el("circle", Object.assign({cx:0, cy:0, r:2.5}, s), g);
-      el("path", Object.assign({d:"M -4 11 L -1.5 8 L 1.5 13 L 4 10", fill:"none"}, s), g);
-    } else if (kind === "spacerWebnet" || kind === "spacerGT"){
-      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
-      el("rect", Object.assign({x:-5, y:-8, width:10, height:16, rx:2}, s), g);
-      el("circle", Object.assign({cx:0, cy:0, r:1.4}, s, {fill:color}), g);
+      // Wall-mounted stud with several rope-mesh corners fanning out from its tip,
+      // matching the real Webnet "rope guide with overload protection" fitting.
+      el("circle", Object.assign({cx:0, cy:-13, r:6}, s), g);
+      el("line", Object.assign({x1:0, y1:-7, x2:0, y2:10}, s), g);
+      [[-9,15],[-3,16],[4,16],[9,13]].forEach(function(pt){
+        el("line", Object.assign({x1:0, y1:10, x2:pt[0], y2:pt[1]}, s), g);
+      });
     }
     return g;
   }
@@ -2984,10 +2983,11 @@
     var wPx = mToPx(wM), hPx = mToPx(hM);
     var startIdx = state.shapes.length;
     if (kind === "webnet"){
-      // Webnet: welded mesh panel, 0/90/180-degree clevis connectors at the perimeter corners,
-      // rope guides with overload protection along the top run, spacers standing the mesh off
-      // the wall down each side — per the real BOM (Webnet System EN technical p.38): clevis
-      // connectors 0/90/180deg, 19x rope guide w/ overload protection, 25x spacers total.
+      // Webnet: welded mesh panel, perimeter studs fix it to the wall -- rope guides with
+      // overload protection along the top (bearing the mesh's hanging weight), plain spacers
+      // around the rest of the perimeter, clevis connectors (0/90/180deg) at the four corners
+      // where the perimeter rope changes direction — per the real BOM (Webnet System EN
+      // technical p.38): 10x clevis connectors, 19x rope guide w/ overload protection, 25x spacers.
       state.shapes.push({id:uid(), type:"net", x:ox, y:oy, w:wPx, h:hPx, mesh:0.06, color:"#2a8c82"});
       state.shapes.push({id:uid(), type:"part", partType:"clevisholder180", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"clevisholder180", x:ox+wPx, y:oy, rot:180, color:"#a6437e", opacity:1});
@@ -2997,47 +2997,52 @@
       for (var wi=1; wi<wTop; wi++){
         state.shapes.push({id:uid(), type:"part", partType:"ropeguideOverload", x:ox+wPx*wi/wTop, y:oy, rot:0, color:"#a6437e", opacity:1});
       }
-      state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ox, y:oy+hPx*0.5, rot:90, color:"#c68a1e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ox+wPx, y:oy+hPx*0.5, rot:270, color:"#c68a1e", opacity:1});
+      var hEdge = Math.max(1, Math.round(hPx / mToPx(1.5)));
+      [ox, ox+wPx].forEach(function(ex){
+        for (var ei=1; ei<=hEdge; ei++){
+          state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ex, y:oy+hPx*ei/(hEdge+1), rot: ex===ox?90:270, color:"#c68a1e", opacity:1});
+        }
+      });
+      var wBottom = Math.max(2, Math.round(wPx / mToPx(1.5)));
+      for (var bi=1; bi<wBottom; bi++){
+        state.shapes.push({id:uid(), type:"part", partType:"spacerWebnet", x:ox+wPx*bi/wBottom, y:oy+hPx, rot:180, color:"#c68a1e", opacity:1});
+      }
       state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:ox, y:oy+hPx+18, rot:90, color:"#6e5aa6", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"turnbuckle", x:ox+wPx, y:oy+hPx+18, rot:90, color:"#6e5aa6", opacity:1});
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet " + wM + "×" + hM + " m — clevis corners, rope guides along the top, spacers off the wall", color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet " + wM + "×" + hM + " m — clevis corners, rope guides along the top, spacers around the rest of the perimeter", color:"#726a5b"});
     } else if (kind === "trellis"){
-      // GreenTrellis: rails top/bottom (standoff-mounted), vertical ropes cross-clamped to each
-      // rail at a 200mm grid, tensioned at the bottom with a Clamp ring light — the real BOM's
-      // actual tensioning hardware (30863-0400); the system is calculated and documented
-      // without turnbuckles. Optional horizontal rods add intermediate rail ties.
-      var barH = Math.max(mToPx(0.02), 3);
-      state.shapes.push({id:uid(), type:"rect", x:ox, y:oy, w:wPx, h:barH, color:"#2a8c82"});
-      state.shapes.push({id:uid(), type:"rect", x:ox, y:oy+hPx-barH, w:wPx, h:barH, color:"#2a8c82"});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox, y:oy+barH/2, rot:0, color:"#a6437e", opacity:1});
-      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox+wPx, y:oy+barH/2, rot:0, color:"#a6437e", opacity:1});
+      // GreenTrellis ships as a prefab welded panel (a square/rectangular grid, unlike Webnet's
+      // diamond mesh) -- not built rope-by-rope on site. Standoffs mount it at the top; Clamp
+      // ring light (30863-0400) tensions the bottom -- the real BOM's actual hardware; the
+      // system is calculated and documented without turnbuckles. An optional horizontal rod
+      // row adds the "greening with horizontal rods" variant the catalog shows as an alternative.
+      state.shapes.push({id:uid(), type:"net", x:ox, y:oy, w:wPx, h:hPx, mesh:0.1, color:"#2a8c82"});
+      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox, y:oy, rot:0, color:"#a6437e", opacity:1});
+      state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox+wPx, y:oy, rot:90, color:"#a6437e", opacity:1});
       var count = opts.vCount ? Math.max(2, Math.round(opts.vCount)) : Math.max(4, Math.round(wPx / mToPx(0.2)));
       var step = wPx / count;
       for (var i=0; i<=count; i++){
-        var cx = ox + i*step;
-        state.shapes.push({id:uid(), type:"line", x1:cx, y1:oy+barH, x2:cx, y2:oy+hPx-barH, color:"#2b6cb5"});
-        state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:cx, y:oy+barH, rot:0, color:"#c68a1e", opacity:1});
-        state.shapes.push({id:uid(), type:"part", partType:"clampring", x:cx, y:oy+hPx-barH/2, rot:90, color:"#6e5aa6", opacity:1});
+        state.shapes.push({id:uid(), type:"part", partType:"clampring", x:ox+i*step, y:oy+hPx, rot:90, color:"#6e5aa6", opacity:1});
       }
       var trellisHCount = Math.max(0, Math.round(opts.hCount || 0));
+      var trellisRodH = Math.max(mToPx(0.012), 2);
       for (var hi=1; hi<=trellisHCount; hi++){
-        var hy = oy + barH + (hPx - 2*barH) * hi / (trellisHCount+1);
-        state.shapes.push({id:uid(), type:"rect", x:ox, y:hy-barH/2, w:wPx, h:barH, color:"#2a8c82"});
-        for (var vi=0; vi<=count; vi++){
-          state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:ox+vi*step, y:hy, rot:0, color:"#c68a1e", opacity:1});
-        }
+        var hy = oy + hPx * hi / (trellisHCount+1);
+        state.shapes.push({id:uid(), type:"rect", x:ox, y:hy-trellisRodH/2, w:wPx, h:trellisRodH, color:"#2a8c82"});
+        state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox, y:hy, rot:0, color:"#a6437e", opacity:1});
+        state.shapes.push({id:uid(), type:"part", partType:"standoffGT", x:ox+wPx, y:hy, rot:90, color:"#a6437e", opacity:1});
       }
-      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenTrellis " + wM + "×" + hM + " m — " + count + " cables o.c., clamp ring tensioning", color:"#726a5b"});
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"GreenTrellis " + wM + "×" + hM + " m — prefab panel, clamp ring tensioning" + (trellisHCount ? (", " + trellisHCount + " horizontal rod" + (trellisHCount===1?"":"s")) : ""), color:"#726a5b"});
     } else if (kind === "greenguide"){
       // GreenGuide: wall standoffs at top run each vertical rope; horizontal rods tie the ropes
-      // together at 1+ levels, held by GreenGuide cross clamps, with a Spacer (GreenGuide)
-      // standing each rope off the facade at every tie level; a wire rope end cap finishes the
-      // bottom — per the real BOM (GreenGuide System EN technical p.19-21), which explicitly
-      // excludes turnbuckles from its calculation.
+      // together at a level roughly every 300-400mm (per the catalog's min.300 row spacing),
+      // held by GreenGuide cross clamps, with a Spacer (GreenGuide) standing each rope off the
+      // facade at every tie level; a wire rope end cap finishes the bottom — per the real BOM
+      // (GreenGuide System EN technical p.19-21), which explicitly excludes turnbuckles.
       var ggCount = opts.vCount ? Math.max(1, Math.round(opts.vCount)) : Math.max(2, Math.round(wPx / mToPx(0.3)));
       var ggStep = wPx / ggCount;
-      var ggHCount = Math.max(1, Math.round(opts.hCount != null ? opts.hCount : 1));
+      var ggDefaultRows = Math.max(1, Math.round(hPx / mToPx(0.4)) - 1);
+      var ggHCount = Math.max(1, Math.round(opts.hCount != null ? opts.hCount : ggDefaultRows));
       var tieYs = [];
       for (var hi2=1; hi2<=ggHCount; hi2++){ tieYs.push(oy + hPx * hi2 / (ggHCount+1)); }
       var ggRodH = Math.max(mToPx(0.012), 2);
