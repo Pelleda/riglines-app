@@ -1540,7 +1540,10 @@
       [-12,-4,4,12].forEach(function(ry){ el("circle", Object.assign({cx:0, cy:ry, r:1}, s), g); });
       el("path", Object.assign({d:"M 4 -3 L 11 -3 L 11 3 L 4 3"}, s), g);
     } else if (kind === "crossclamp"){
-      drawHubClamp(g, s, color);
+      el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
+      el("line", Object.assign({x1:0, y1:-16, x2:0, y2:16}, s), g);
+      el("rect", Object.assign({x:-6, y:-6, width:12, height:12, rx:2}, s), g);
+      [[-3,-3],[3,3]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1}, s), g); });
     } else if (kind === "ropeclamp"){
       el("line", Object.assign({x1:-16, y1:0, x2:16, y2:0}, s), g);
       el("rect", Object.assign({x:-5, y:-7, width:10, height:14, rx:3}, s), g);
