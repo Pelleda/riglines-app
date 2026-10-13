@@ -496,6 +496,7 @@
         <button type="button" class="btn tpl-btn" id="tplTrellis">GreenTrellis</button>
         <button type="button" class="btn tpl-btn" id="tplGreenGuide">GreenGuide rope grid</button>
         <button type="button" class="btn tpl-btn" id="tplWebnetFrame">Webnet Frame (prefab)</button>
+        <button type="button" class="btn tpl-btn" id="tplSWall">S-wall grid (fixed 11.5×4.5m frame)</button>
       </div>
     </div>
     <div class="hdr-menu" id="assemblyMenu">
@@ -2978,7 +2979,7 @@
 
   // ---------- templates (based on Jakob Rope Systems' greening product lines) ----------
   function templateName(kind){
-    return {webnet:"Webnet greening frame", trellis:"GreenTrellis", greenguide:"GreenGuide rope grid", webnetframe:"Webnet Frame"}[kind] || "Template";
+    return {webnet:"Webnet greening frame", trellis:"GreenTrellis", greenguide:"GreenGuide rope grid", webnetframe:"Webnet Frame", swall:"S-wall grid"}[kind] || "Template";
   }
   function insertTemplateAt(kind, wM, hM, ox, oy, opts){
     pushUndo();
@@ -3079,6 +3080,47 @@
       state.shapes.push({id:uid(), type:"part", partType:"postfittingWebnet", x:ox+wPx, y:oy+hPx, rot:180, color:"#a6437e", opacity:1});
       state.shapes.push({id:uid(), type:"part", partType:"spacerGT", x:ox+wPx-16, y:oy+hPx-16, rot:90, color:"#c68a1e", opacity:1});
       state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"Webnet Frame " + wM + "×" + hM + " m — post fitting + spacer per corner, Ø26.9mm tube", color:"#726a5b"});
+    } else if (kind === "swall"){
+      // S-series greening wall: the rope-grid frame is a fixed 11.5x4.5m unit, always -- only
+      // the wall opening (wM x hM, given per wall S1/S2/S3...) changes, and the frame sits
+      // centered inside it with the leftover gap split evenly on every side. 4 panels x 6
+      // vertical cables x 8 horizontal tie rows, rings at top/bottom of every cable, a cross
+      // clamp at every row intersection, one bend-prevention spacer per panel, and swaged /
+      // self-assembly-turnbuckle eye ends at two columns per panel -- per the reference drawing.
+      var FRAME_W_M = 11.5, FRAME_H_M = 4.5;
+      var wallWPx = wPx, wallHPx = hPx;
+      var frameWPx = mToPx(FRAME_W_M), frameHPx = mToPx(FRAME_H_M);
+      var gapX = (wallWPx - frameWPx) / 2, gapY = (wallHPx - frameHPx) / 2;
+      var fx = ox + gapX, fy = oy + gapY;
+      state.shapes.push({id:uid(), type:"rect", x:ox, y:oy, w:wallWPx, h:wallHPx, color:"#2b6cb5", rectKind:"wall"});
+      state.shapes.push({id:uid(), type:"rect", x:fx, y:fy, w:frameWPx, h:frameHPx, color:"#2a8c82", rectKind:"frame"});
+      state.shapes.push({id:uid(), type:"text", x:fx, y:fy-14, text:"T1 14,5 m.", color:"#9c4a2e"});
+      var PANELS = 4, COLS = 6, ROWS = 8;
+      var panelW = frameWPx / PANELS, colPitch = panelW / COLS;
+      var rowPitch = frameHPx / (ROWS + 1);
+      for (var pIdx=0; pIdx<PANELS; pIdx++){
+        var panelX0 = fx + pIdx*panelW;
+        var cols = [];
+        for (var cIdx=0; cIdx<COLS; cIdx++) cols.push(panelX0 + colPitch*(cIdx+0.5));
+        cols.forEach(function(cx){
+          state.shapes.push({id:uid(), type:"line", x1:cx, y1:fy, x2:cx, y2:fy+frameHPx, color:"#9c4a2e"});
+          state.shapes.push({id:uid(), type:"ring", cx:cx, cy:fy, rOuter:7, rInner:5, color:"#c68a1e"});
+          state.shapes.push({id:uid(), type:"ring", cx:cx, cy:fy+frameHPx, rOuter:7, rInner:5, color:"#c68a1e"});
+        });
+        for (var rIdx=1; rIdx<=ROWS; rIdx++){
+          var ry = fy + rowPitch*rIdx;
+          state.shapes.push({id:uid(), type:"line", x1:cols[0], y1:ry, x2:cols[COLS-1], y2:ry, color:"#2b6cb5"});
+          cols.forEach(function(cx){
+            state.shapes.push({id:uid(), type:"part", partType:"crossclamp", x:cx, y:ry, rot:0, color:"#2e5c40", opacity:1});
+          });
+        }
+        // bend-prevention spacer, roughly mid-panel
+        state.shapes.push({id:uid(), type:"part", partType:"spacer", x:cols[2], y:fy+rowPitch*Math.round(ROWS/2), rot:90, color:"#c68a1e", opacity:1});
+        // eye ends at the bottom: one swaged, one self-assembly turnbuckle
+        state.shapes.push({id:uid(), type:"part", partType:"eyeend", x:cols[2], y:fy+frameHPx, rot:90, color:"#5fd97a", opacity:1});
+        state.shapes.push({id:uid(), type:"part", partType:"eyeendTBSA", x:cols[4], y:fy+frameHPx, rot:90, color:"#5fd97a", opacity:1});
+      }
+      state.shapes.push({id:uid(), type:"text", x:ox, y:oy-14, text:"S-wall " + wM + "×" + hM + " m — fixed 11.5×4.5m frame, " + fmtLen(pxToM(gapX)) + " side gap, " + fmtLen(pxToM(gapY)) + " top/bottom gap", color:"#726a5b"});
     }
     var gid = newGroupId();
     state.groups.push({id:gid, name: templateName(kind) + " " + wM + "×" + hM + "m"});
@@ -4745,6 +4787,12 @@
     closeAllPopovers();
     constructionModal("Webnet Frame — construction", {w:3, h:1.5, counts:false}, function(w,h){
       pendingTemplate = {kind:"webnetframe", w:w, h:h}; setTool("templatePlace");
+    });
+  });
+  document.getElementById("tplSWall").addEventListener("click", function(){
+    closeAllPopovers();
+    constructionModal("S-wall grid — wall opening size (frame is always 11.5×4.5m, centered)", {w:12.55, h:5, counts:false}, function(w,h){
+      pendingTemplate = {kind:"swall", w:w, h:h}; setTool("templatePlace");
     });
   });
   document.getElementById("undoBtn").addEventListener("click", undo);
