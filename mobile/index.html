@@ -735,11 +735,29 @@
   function effectiveSnapPx(){ return Math.min(SNAP_PX_SCREEN / zoom, 150); }
 
   // ---------- persistence ----------
+  // Parts are normally drawn live from buildPart(kind, color) — fine while the app
+  // code is unchanged, but if a part's glyph is ever redesigned later, old saves would
+  // silently re-render with the new look instead of what was actually placed. To keep
+  // saved/exported files exact, we bake each part's rendered markup into the save data;
+  // on load it's used verbatim (and only verbatim — any color/kind edit invalidates it,
+  // falling back to a live draw) instead of being recomputed from current app code.
+  function glyphMarkup(kind, color){
+    try{ return buildPart(kind, color).innerHTML; }catch(e){ return null; }
+  }
+  function bakedShapes(){
+    return state.shapes.map(function(s){
+      if (s.type === "part" && typeof s.partType === "string"){
+        var markup = glyphMarkup(s.partType, s.color);
+        if (markup != null) return Object.assign({}, s, {glyph: markup, glyphKind: s.partType, glyphColor: s.color});
+      }
+      return s;
+    });
+  }
   function serializeState(){
     return {
       _riglines: true, savedAt: new Date().toISOString(),
       scale: state.scale, canvasW: state.canvasW, canvasH: state.canvasH,
-      legend: state.legend, shapes: state.shapes, nextId: state.nextId, unit: state.unit
+      legend: state.legend, shapes: bakedShapes(), nextId: state.nextId, unit: state.unit
     };
   }
   function hydrateState(data){
@@ -755,12 +773,19 @@
   function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      try{ localStorage.setItem(STORE_KEY, JSON.stringify(serializeState())); }catch(e){}
+      var json = JSON.stringify(serializeState());
+      try{ sessionStorage.setItem(STORE_KEY, json); }catch(e){}
+      try{ localStorage.setItem(STORE_KEY, json); }catch(e){}
     }, 250);
   }
   function load(){
+    // Autosave is per-tab (sessionStorage) so each open tab can hold its own project —
+    // open a new tab and use "Open project" there to work on a different drawing without
+    // disturbing what's open elsewhere. localStorage is kept only as a recovery fallback
+    // for a brand-new tab that hasn't loaded anything yet (e.g. after closing every tab).
     var raw = null;
-    try{ raw = localStorage.getItem(STORE_KEY); }catch(e){}
+    try{ raw = sessionStorage.getItem(STORE_KEY); }catch(e){}
+    if (!raw){ try{ raw = localStorage.getItem(STORE_KEY); }catch(e){} }
     if (raw){ try{ hydrateState(JSON.parse(raw)); return; }catch(e){} }
     state.shapes = [
       {id: uid(), type:"line", x1:280, y1:260, x2:520, y2:260, color:"#2b6cb5"},
@@ -812,6 +837,7 @@
       applyCanvasSize();
       fitToScreen();
       render();
+      scheduleSave();
       toast("Project loaded.");
     };
     reader.onerror = function(){ toast("Couldn't read that file."); };
@@ -1068,7 +1094,11 @@
       } else if (s.type === "part"){
         el("circle", {cx:s.x, cy:s.y, r:24, fill:"transparent", "pointer-events":"all"}, g);
         var wrap = el("g", {transform:"translate(" + s.x + "," + s.y + ") rotate(" + (s.rot||0) + ")"}, g);
-        wrap.appendChild(buildPart(s.partType, s.color));
+        if (s.glyph && s.glyphKind === s.partType && s.glyphColor === s.color){
+          wrap.innerHTML = s.glyph;
+        } else {
+          wrap.appendChild(buildPart(s.partType, s.color));
+        }
       } else if (s.type === "polyline"){
         var drawPts = s.points.slice();
         if (drawPts.length >= 2){
@@ -1360,6 +1390,7 @@
       '<div class="menu-row"><button type="button" class="full" id="mNew"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4v12M4 10h12" stroke-linecap="round"/></svg>New drawing</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mSave"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h9l3 3v9H4z" stroke-linejoin="round"/><path d="M7 4v5h6V4" stroke-linejoin="round"/></svg>Save project</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mOpen"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h5l2 2h7v8H3z" stroke-linejoin="round"/></svg>Open project</button></div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mNewTab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 8h14M10 11v3M8.5 12.5h3" stroke-linecap="round"/></svg>New tab</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mFit"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h4M4 4v4M16 4h-4M16 4v4M4 16h4M4 16v-4M16 16h-4M16 16v-4" stroke-linecap="round"/></svg>Fit to screen</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mArchitect"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 17 L7 5 L10 12 L13 6 L18 17" stroke-linejoin="round" stroke-linecap="round"/></svg><span id="mArchitectLabel">Architect view</span></button></div>' +
       '<div class="menu-row danger-row"><button type="button" class="full" id="mClear"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Clear canvas</button></div>';
@@ -1374,6 +1405,7 @@
       });
       sheet.querySelector("#mSave").addEventListener("click", function(){ close(); saveProject(); });
       sheet.querySelector("#mOpen").addEventListener("click", function(){ close(); openProjectPicker(); });
+      sheet.querySelector("#mNewTab").addEventListener("click", function(){ close(); window.open(location.href, "_blank"); });
       sheet.querySelector("#mFit").addEventListener("click", function(){ close(); fitToScreen(); });
       sheet.querySelector("#mArchitect").addEventListener("click", function(){
         close();

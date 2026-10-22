@@ -552,6 +552,7 @@
     <div class="btn-group">
       <button class="btn" id="saveFileBtn" title="Save this drawing as a project file (.riglines.json) you can send to someone else or reopen later">Save project</button>
       <button class="btn" id="openFileBtn" title="Open a project file (.riglines.json) saved earlier">Open project</button>
+      <button class="btn" id="newTabBtn" title="Open Riglines in a new browser tab — each tab keeps its own project, so you can open a different one there">New tab</button>
     </div>
     <input type="file" id="projectFileInput" accept=".json,.riglines,.riglines.json" hidden>
   </div>
@@ -1211,12 +1212,34 @@
   }
 
   // ---------- persistence ----------
+  // Parts are normally drawn live from buildPart(kind, color) — fine while the app
+  // code is unchanged, but if a part's glyph is ever redesigned later, old saves would
+  // silently re-render with the new look instead of what was actually placed. To keep
+  // saved/exported files exact, we bake each part's rendered markup into the save data;
+  // on load it's used verbatim (and only verbatim — any color/kind edit invalidates it,
+  // falling back to a live draw) instead of being recomputed from current app code.
+  function glyphMarkup(kind, color){
+    try{ return buildPart(kind, color).innerHTML; }catch(e){ return null; }
+  }
+  function bakeGlyph(s){
+    if (s.type === "part" && typeof s.partType === "string" && s.partType.indexOf("custom:") !== 0){
+      var markup = glyphMarkup(s.partType, s.color);
+      if (markup != null) return Object.assign({}, s, {glyph: markup, glyphKind: s.partType, glyphColor: s.color});
+    }
+    return s;
+  }
+  function bakedShapes(){ return state.shapes.map(bakeGlyph); }
+  function bakedCustomParts(){
+    return state.customParts.map(function(cp){
+      return Object.assign({}, cp, {shapes: cp.shapes.map(bakeGlyph)});
+    });
+  }
   function serializeState(){
     return {
       _riglines: true, savedAt: new Date().toISOString(),
       scale: state.scale, canvasW: state.canvasW, canvasH: state.canvasH,
-      legend: state.legend, shapes: state.shapes, nextId: state.nextId, favParts: state.favParts,
-      groups: state.groups, sections: state.sections, customParts: state.customParts,
+      legend: state.legend, shapes: bakedShapes(), nextId: state.nextId, favParts: state.favParts,
+      groups: state.groups, sections: state.sections, customParts: bakedCustomParts(),
       itemCodes: state.itemCodes, unit: state.unit, assembly: state.assembly
     };
   }
@@ -1241,12 +1264,19 @@
   function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      try{ localStorage.setItem(STORE_KEY, JSON.stringify(serializeState())); }catch(e){}
+      var json = JSON.stringify(serializeState());
+      try{ sessionStorage.setItem(STORE_KEY, json); }catch(e){}
+      try{ localStorage.setItem(STORE_KEY, json); }catch(e){}
     }, 250);
   }
   function load(){
+    // Autosave is per-tab (sessionStorage) so each open tab can hold its own project —
+    // open a new tab and use "Open project" there to work on a different drawing without
+    // disturbing what's open elsewhere. localStorage is kept only as a recovery fallback
+    // for a brand-new tab that hasn't loaded anything yet (e.g. after closing every tab).
     var raw = null;
-    try{ raw = localStorage.getItem(STORE_KEY); }catch(e){}
+    try{ raw = sessionStorage.getItem(STORE_KEY); }catch(e){}
+    if (!raw){ try{ raw = localStorage.getItem(STORE_KEY); }catch(e){} }
     if (raw){
       try{ hydrateState(JSON.parse(raw)); return; }catch(e){}
     }
@@ -1338,6 +1368,7 @@
       document.getElementById("canvasHInput").value = state.canvasH;
       syncUnitButtons();
       render();
+      scheduleSave();
       notify("Project loaded from " + file.name + ".");
     };
     reader.onerror = function(){ notify("Couldn't read that file."); };
@@ -2196,6 +2227,8 @@
         if (typeof cs.partType === "string" && cs.partType.indexOf("custom:") === 0){
           var inner = findCustomPart(cs.partType.slice(7));
           if (inner) renderCustomPartInto(g2, inner);
+        } else if (cs.glyph && cs.glyphKind === cs.partType && cs.glyphColor === cs.color){
+          g2.innerHTML = cs.glyph;
         } else {
           g2.appendChild(buildPart(cs.partType, cs.color));
         }
@@ -3495,6 +3528,8 @@
         if (typeof s.partType === "string" && s.partType.indexOf("custom:") === 0){
           var cp = findCustomPart(s.partType.slice(7));
           if (cp) renderCustomPartInto(wrap, cp);
+        } else if (s.glyph && s.glyphKind === s.partType && s.glyphColor === s.color){
+          wrap.innerHTML = s.glyph;
         } else {
           wrap.appendChild(buildPart(s.partType, s.color));
         }
@@ -4827,6 +4862,9 @@
   });
   document.getElementById("saveFileBtn").addEventListener("click", showSaveProjectModal);
   document.getElementById("openFileBtn").addEventListener("click", openProjectPicker);
+  document.getElementById("newTabBtn").addEventListener("click", function(){
+    window.open(location.href, "_blank");
+  });
   document.getElementById("projectFileInput").addEventListener("change", function(e){
     var file = e.target.files && e.target.files[0];
     e.target.value = "";
