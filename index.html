@@ -157,6 +157,14 @@
     display:flex; flex-direction:column; min-height:0;
   }
   .canvas-col{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .tab-strip{ flex:0 0 auto; display:flex; align-items:stretch; gap:2px; padding:4px 6px 0; background:var(--panel-2); border-bottom:1px solid var(--border); overflow-x:auto; }
+  .tab-btn{ display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; background:var(--panel-2); color:var(--ink); padding:5px 8px; font:inherit; font-size:var(--fs-sm); cursor:pointer; white-space:nowrap; max-width:160px; }
+  .tab-btn.active{ background:var(--panel); border-color:var(--accent); color:var(--accent); }
+  .tab-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tab-close{ opacity:.6; font-size:14px; line-height:1; padding:0 2px; border-radius:3px; }
+  .tab-close:hover{ opacity:1; background:var(--accent-soft); }
+  .tab-add{ border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; background:var(--panel-2); color:var(--ink); width:28px; cursor:pointer; font-weight:700; }
+  .tab-add:hover{ color:var(--accent); border-color:var(--accent); }
   .tools{
     display:flex; flex-direction:row; flex-wrap:wrap; gap:2px; padding:6px 10px; flex:0 0 auto;
     background:var(--panel); border-top:1px solid var(--border);
@@ -552,7 +560,6 @@
     <div class="btn-group">
       <button class="btn" id="saveFileBtn" title="Save this drawing as a project file (.riglines.json) you can send to someone else or reopen later">Save project</button>
       <button class="btn" id="openFileBtn" title="Open a project file (.riglines.json) saved earlier">Open project</button>
-      <button class="btn" id="newTabBtn" title="Open Riglines in a new browser tab — each tab keeps its own project, so you can open a different one there">New tab</button>
     </div>
     <input type="file" id="projectFileInput" accept=".json,.riglines,.riglines.json" hidden>
   </div>
@@ -573,6 +580,7 @@
   </aside>
 
   <div class="canvas-col">
+   <div class="tab-strip" id="tabStrip"></div>
    <div class="canvas-rulers">
     <div class="ruler-corner"></div>
     <canvas class="ruler ruler-h" id="rulerH"></canvas>
@@ -702,6 +710,10 @@
   "use strict";
   var NS = "http://www.w3.org/2000/svg";
   var STORE_KEY = "riglines-sketch-v1";
+  var TABS_KEY = "riglines-tabs-v1";
+  var tabs = [];
+  var activeTabIdx = 0;
+  var tabCounter = 1;
   var PRESETS = [
     {color:"#2b6cb5", name:"Main rope", visible:true, locked:false},
     {color:"#3f7d4f", name:"Secondary rope", visible:true, locked:false},
@@ -1261,26 +1273,141 @@
       state.assembly.colorA = state.assembly.colorB = state.assembly.colorCable = state.assembly.color;
     }
   }
+  function defaultProjectData(){
+    return {
+      scale:100, canvasW:18, canvasH:11.5,
+      legend: PRESETS.map(function(p){ return {color:p.color, name:p.name, visible:true, locked:false}; }),
+      shapes:[], nextId:1, favParts:[], groups:[], sections:[], customParts:[], itemCodes:{},
+      unit:"m", assembly:{endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false}
+    };
+  }
+  function projectNameFromFile(filename){
+    return filename.replace(/\.riglines\.json$/i, "").replace(/\.json$/i, "") || filename;
+  }
+  // Each browser tab can hold several projects at once (the tab strip above the
+  // canvas), so you can flip between them without opening separate browser tabs.
+  // The whole set is kept in this tab's sessionStorage; localStorage is only a
+  // recovery fallback for a brand-new tab that hasn't loaded anything yet.
   function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      var json = JSON.stringify(serializeState());
-      try{ sessionStorage.setItem(STORE_KEY, json); }catch(e){}
-      try{ localStorage.setItem(STORE_KEY, json); }catch(e){}
+      var snap = serializeState();
+      if (tabs[activeTabIdx]) tabs[activeTabIdx].snapshot = snap;
+      try{
+        sessionStorage.setItem(TABS_KEY, JSON.stringify({
+          tabs: tabs.map(function(t){ return {id:t.id, name:t.name, snapshot:t.snapshot}; }),
+          activeTabIdx: activeTabIdx
+        }));
+      }catch(e){}
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(snap)); }catch(e){}
     }, 250);
   }
   function load(){
-    // Autosave is per-tab (sessionStorage) so each open tab can hold its own project —
-    // open a new tab and use "Open project" there to work on a different drawing without
-    // disturbing what's open elsewhere. localStorage is kept only as a recovery fallback
-    // for a brand-new tab that hasn't loaded anything yet (e.g. after closing every tab).
     var raw = null;
-    try{ raw = sessionStorage.getItem(STORE_KEY); }catch(e){}
-    if (!raw){ try{ raw = localStorage.getItem(STORE_KEY); }catch(e){} }
+    try{ raw = sessionStorage.getItem(TABS_KEY); }catch(e){}
     if (raw){
-      try{ hydrateState(JSON.parse(raw)); return; }catch(e){}
+      try{
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length){
+          tabs = parsed.tabs;
+          activeTabIdx = Math.min(Math.max(parsed.activeTabIdx || 0, 0), tabs.length - 1);
+          tabCounter = tabs.length;
+          hydrateState(tabs[activeTabIdx].snapshot || defaultProjectData());
+          return;
+        }
+      }catch(e){}
+    }
+    // migrate from the old single-project autosave
+    var legacy = null;
+    try{ legacy = sessionStorage.getItem(STORE_KEY); }catch(e){}
+    if (!legacy){ try{ legacy = localStorage.getItem(STORE_KEY); }catch(e){} }
+    if (legacy){
+      try{
+        hydrateState(JSON.parse(legacy));
+        tabs = [{id:"t1", name:"Project 1", snapshot:null}];
+        activeTabIdx = 0;
+        return;
+      }catch(e){}
     }
     seedExample();
+    tabs = [{id:"t1", name:"Project 1", snapshot:null}];
+    activeTabIdx = 0;
+  }
+  function applyLoadedProject(data){
+    hydrateState(data || defaultProjectData());
+    undoStack = []; redoStack = [];
+    clearSelection();
+    draft = null;
+    applyCanvasSize();
+    document.getElementById("scaleInput").value = state.scale;
+    document.getElementById("canvasWInput").value = state.canvasW;
+    document.getElementById("canvasHInput").value = state.canvasH;
+    syncUnitButtons();
+    render();
+  }
+  function switchTab(idx){
+    if (idx === activeTabIdx || !tabs[idx]) return;
+    tabs[activeTabIdx].snapshot = serializeState();
+    activeTabIdx = idx;
+    applyLoadedProject(tabs[idx].snapshot);
+    renderTabStrip();
+    scheduleSave();
+  }
+  function addTab(){
+    if (tabs[activeTabIdx]) tabs[activeTabIdx].snapshot = serializeState();
+    tabCounter++;
+    var t = {id:"t" + Date.now() + "_" + Math.floor(Math.random()*1000), name:"Project " + tabCounter, snapshot: defaultProjectData()};
+    tabs.push(t);
+    activeTabIdx = tabs.length - 1;
+    applyLoadedProject(t.snapshot);
+    renderTabStrip();
+    scheduleSave();
+  }
+  function closeTab(idx){
+    if (tabs.length <= 1 || !tabs[idx]) return;
+    confirmModal("Close this project tab? Anything in it that you haven't saved as a file will be lost.", "Close tab", function(){
+      tabs.splice(idx, 1);
+      if (activeTabIdx === idx){
+        activeTabIdx = Math.min(idx, tabs.length - 1);
+        applyLoadedProject(tabs[activeTabIdx].snapshot);
+      } else if (activeTabIdx > idx){
+        activeTabIdx--;
+      }
+      renderTabStrip();
+      scheduleSave();
+    });
+  }
+  function renderTabStrip(){
+    var strip = document.getElementById("tabStrip");
+    if (!strip) return;
+    strip.innerHTML = "";
+    tabs.forEach(function(t, i){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab-btn" + (i === activeTabIdx ? " active" : "");
+      b.title = t.name;
+      var label = document.createElement("span");
+      label.className = "tab-label";
+      label.textContent = t.name;
+      b.appendChild(label);
+      if (tabs.length > 1){
+        var x = document.createElement("span");
+        x.className = "tab-close";
+        x.textContent = "×";
+        x.title = "Close tab";
+        x.addEventListener("click", function(e){ e.stopPropagation(); closeTab(i); });
+        b.appendChild(x);
+      }
+      b.addEventListener("click", function(){ switchTab(i); });
+      strip.appendChild(b);
+    });
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "tab-add";
+    add.title = "New project tab";
+    add.textContent = "+";
+    add.addEventListener("click", addTab);
+    strip.appendChild(add);
   }
   function seedExample(){
     state.shapes = [
@@ -1358,16 +1485,9 @@
       var data;
       try{ data = JSON.parse(reader.result); }
       catch(e){ notify("Couldn't read that file — it doesn't look like a Riglines project."); return; }
-      hydrateState(data);
-      undoStack = []; redoStack = [];
-      clearSelection();
-      draft = null;
-      applyCanvasSize();
-      document.getElementById("scaleInput").value = state.scale;
-      document.getElementById("canvasWInput").value = state.canvasW;
-      document.getElementById("canvasHInput").value = state.canvasH;
-      syncUnitButtons();
-      render();
+      applyLoadedProject(data);
+      if (tabs[activeTabIdx]) tabs[activeTabIdx].name = projectNameFromFile(file.name);
+      renderTabStrip();
       scheduleSave();
       notify("Project loaded from " + file.name + ".");
     };
@@ -4862,9 +4982,6 @@
   });
   document.getElementById("saveFileBtn").addEventListener("click", showSaveProjectModal);
   document.getElementById("openFileBtn").addEventListener("click", openProjectPicker);
-  document.getElementById("newTabBtn").addEventListener("click", function(){
-    window.open(location.href, "_blank");
-  });
   document.getElementById("projectFileInput").addEventListener("change", function(e){
     var file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -5090,6 +5207,7 @@
   syncUnitButtons();
   setTool("select");
   render();
+  renderTabStrip();
 })();
 </script>
 <script>

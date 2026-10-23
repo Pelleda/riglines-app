@@ -195,6 +195,12 @@
   .menu-sizes label{ display:flex; flex-direction:column; gap:3px; font-size:var(--fs-xs); color:var(--ink-soft); }
   .menu-sizes input{ width:5.5em; padding:7px 8px; border:1px solid var(--border); border-radius:8px; background:var(--panel-2); color:var(--ink); font-family:"IBM Plex Mono",monospace; }
   .danger-row button.full{ color:var(--danger); }
+  .menu-section-label{ padding:10px 4px 2px; font-size:var(--fs-xs); color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; }
+  .project-row{ display:flex; align-items:center; gap:8px; padding:0; border-bottom:1px solid var(--border); }
+  .project-row:last-child{ border-bottom:none; }
+  .project-switch{ flex:1 1 auto; text-align:left; background:none; border:none; padding:14px 4px; font-size:var(--fs-base); color:var(--ink); }
+  .project-row.active .project-switch{ color:var(--accent); font-weight:600; }
+  .project-close{ flex:0 0 auto; background:none; border:none; padding:10px; font-size:18px; line-height:1; color:var(--ink-soft); }
 
   .modal-backdrop{ position:fixed; inset:0; background:rgba(20,16,8,0.4); display:flex; align-items:center; justify-content:center; z-index:60; padding:16px; }
   .modal{ background:var(--panel); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); padding:18px; width:100%; max-width:360px; display:flex; flex-direction:column; gap:12px; }
@@ -280,6 +286,10 @@
   "use strict";
   var NS = "http://www.w3.org/2000/svg";
   var STORE_KEY = "riglines-mobile-sketch-v1";
+  var TABS_KEY = "riglines-mobile-tabs-v1";
+  var tabs = [];
+  var activeTabIdx = 0;
+  var tabCounter = 1;
   var PRESETS = [
     {color:"#2b6cb5", name:"Main rope"},
     {color:"#3f7d4f", name:"Secondary rope"},
@@ -770,28 +780,114 @@
     state.nextId = data.nextId || (state.shapes.length + 1);
     state.unit = data.unit || "m";
   }
+  function defaultProjectData(){
+    return {
+      scale:100, canvasW:24, canvasH:36,
+      legend: PRESETS.map(function(p){ return {color:p.color, name:p.name}; }),
+      shapes:[], nextId:1, unit:"m"
+    };
+  }
+  function seedProjectData(){
+    return Object.assign(defaultProjectData(), {
+      shapes: [
+        {id:"s1", type:"line", x1:280, y1:260, x2:520, y2:260, color:"#2b6cb5"},
+        {id:"s2", type:"part", partType:"clevis", x:280, y:260, rot:0, color:"#b5432b"},
+        {id:"s3", type:"part", partType:"clevisTB", x:520, y:260, rot:0, color:"#6e5aa6"}
+      ],
+      nextId: 4
+    });
+  }
+  function projectNameFromFile(filename){
+    return filename.replace(/\.riglines\.json$/i, "").replace(/\.json$/i, "") || filename;
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  // Several projects can be open at once (see the Projects list in the menu), kept
+  // in this browser tab's sessionStorage so you can switch between them without
+  // losing anything. localStorage is only a recovery fallback for a brand-new tab.
   function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      var json = JSON.stringify(serializeState());
-      try{ sessionStorage.setItem(STORE_KEY, json); }catch(e){}
-      try{ localStorage.setItem(STORE_KEY, json); }catch(e){}
+      var snap = serializeState();
+      if (tabs[activeTabIdx]) tabs[activeTabIdx].snapshot = snap;
+      try{
+        sessionStorage.setItem(TABS_KEY, JSON.stringify({
+          tabs: tabs.map(function(t){ return {id:t.id, name:t.name, snapshot:t.snapshot}; }),
+          activeTabIdx: activeTabIdx
+        }));
+      }catch(e){}
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(snap)); }catch(e){}
     }, 250);
   }
   function load(){
-    // Autosave is per-tab (sessionStorage) so each open tab can hold its own project —
-    // open a new tab and use "Open project" there to work on a different drawing without
-    // disturbing what's open elsewhere. localStorage is kept only as a recovery fallback
-    // for a brand-new tab that hasn't loaded anything yet (e.g. after closing every tab).
     var raw = null;
-    try{ raw = sessionStorage.getItem(STORE_KEY); }catch(e){}
-    if (!raw){ try{ raw = localStorage.getItem(STORE_KEY); }catch(e){} }
-    if (raw){ try{ hydrateState(JSON.parse(raw)); return; }catch(e){} }
-    state.shapes = [
-      {id: uid(), type:"line", x1:280, y1:260, x2:520, y2:260, color:"#2b6cb5"},
-      {id: uid(), type:"part", partType:"clevis", x:280, y:260, rot:0, color:"#b5432b"},
-      {id: uid(), type:"part", partType:"clevisTB", x:520, y:260, rot:0, color:"#6e5aa6"}
-    ];
+    try{ raw = sessionStorage.getItem(TABS_KEY); }catch(e){}
+    if (raw){
+      try{
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length){
+          tabs = parsed.tabs;
+          activeTabIdx = Math.min(Math.max(parsed.activeTabIdx || 0, 0), tabs.length - 1);
+          tabCounter = tabs.length;
+          hydrateState(tabs[activeTabIdx].snapshot || defaultProjectData());
+          return;
+        }
+      }catch(e){}
+    }
+    var legacy = null;
+    try{ legacy = sessionStorage.getItem(STORE_KEY); }catch(e){}
+    if (!legacy){ try{ legacy = localStorage.getItem(STORE_KEY); }catch(e){} }
+    if (legacy){
+      try{
+        hydrateState(JSON.parse(legacy));
+        tabs = [{id:"t1", name:"Project 1", snapshot:null}];
+        activeTabIdx = 0;
+        return;
+      }catch(e){}
+    }
+    hydrateState(seedProjectData());
+    tabs = [{id:"t1", name:"Project 1", snapshot:null}];
+    activeTabIdx = 0;
+  }
+  function applyLoadedProject(data){
+    hydrateState(data || defaultProjectData());
+    undoStack = []; redoStack = []; syncUndoButtons();
+    clearSelection();
+    applyCanvasSize();
+    fitToScreen();
+    render();
+  }
+  function switchTab(idx){
+    if (idx === activeTabIdx || !tabs[idx]) return;
+    tabs[activeTabIdx].snapshot = serializeState();
+    activeTabIdx = idx;
+    applyLoadedProject(tabs[idx].snapshot);
+    scheduleSave();
+  }
+  function addTab(){
+    if (tabs[activeTabIdx]) tabs[activeTabIdx].snapshot = serializeState();
+    tabCounter++;
+    var t = {id:"t" + Date.now() + "_" + Math.floor(Math.random()*1000), name:"Project " + tabCounter, snapshot: defaultProjectData()};
+    tabs.push(t);
+    activeTabIdx = tabs.length - 1;
+    applyLoadedProject(t.snapshot);
+    scheduleSave();
+  }
+  function closeTab(idx){
+    if (tabs.length <= 1 || !tabs[idx]) return;
+    confirmModal("Close this project? Anything in it that you haven't saved as a file will be lost.", "Close project", function(){
+      tabs.splice(idx, 1);
+      if (activeTabIdx === idx){
+        activeTabIdx = Math.min(idx, tabs.length - 1);
+        applyLoadedProject(tabs[activeTabIdx].snapshot);
+      } else if (activeTabIdx > idx){
+        activeTabIdx--;
+      }
+      scheduleSave();
+    });
   }
   function projectFilename(){ return "riglines-" + new Date().toISOString().slice(0,10) + ".riglines.json"; }
   function downloadProjectFile(json, filename){
@@ -831,12 +927,8 @@
       var data;
       try{ data = JSON.parse(reader.result); }
       catch(e){ toast("That file doesn't look like a Riglines project."); return; }
-      hydrateState(data);
-      undoStack = []; redoStack = []; syncUndoButtons();
-      clearSelection();
-      applyCanvasSize();
-      fitToScreen();
-      render();
+      applyLoadedProject(data);
+      if (tabs[activeTabIdx]) tabs[activeTabIdx].name = projectNameFromFile(file.name);
       scheduleSave();
       toast("Project loaded.");
     };
@@ -1390,7 +1482,14 @@
       '<div class="menu-row"><button type="button" class="full" id="mNew"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4v12M4 10h12" stroke-linecap="round"/></svg>New drawing</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mSave"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h9l3 3v9H4z" stroke-linejoin="round"/><path d="M7 4v5h6V4" stroke-linejoin="round"/></svg>Save project</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mOpen"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h5l2 2h7v8H3z" stroke-linejoin="round"/></svg>Open project</button></div>' +
-      '<div class="menu-row"><button type="button" class="full" id="mNewTab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="M3 8h14M10 11v3M8.5 12.5h3" stroke-linecap="round"/></svg>New tab</button></div>' +
+      '<div class="menu-section-label">Projects open in this tab</div>' +
+      '<div id="mProjects">' + tabs.map(function(t, i){
+        return '<div class="project-row' + (i === activeTabIdx ? ' active' : '') + '">' +
+          '<button type="button" class="project-switch" data-idx="' + i + '">' + escapeHtml(t.name) + (i === activeTabIdx ? " (current)" : "") + '</button>' +
+          (tabs.length > 1 ? '<button type="button" class="project-close" data-idx="' + i + '" title="Close project">×</button>' : '') +
+        '</div>';
+      }).join('') + '</div>' +
+      '<div class="menu-row"><button type="button" class="full" id="mAddProject"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4v12M4 10h12" stroke-linecap="round"/></svg>New project</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mFit"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h4M4 4v4M16 4h-4M16 4v4M4 16h4M4 16v-4M16 16h-4M16 16v-4" stroke-linecap="round"/></svg>Fit to screen</button></div>' +
       '<div class="menu-row"><button type="button" class="full" id="mArchitect"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 17 L7 5 L10 12 L13 6 L18 17" stroke-linejoin="round" stroke-linecap="round"/></svg><span id="mArchitectLabel">Architect view</span></button></div>' +
       '<div class="menu-row danger-row"><button type="button" class="full" id="mClear"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/></svg>Clear canvas</button></div>';
@@ -1405,7 +1504,13 @@
       });
       sheet.querySelector("#mSave").addEventListener("click", function(){ close(); saveProject(); });
       sheet.querySelector("#mOpen").addEventListener("click", function(){ close(); openProjectPicker(); });
-      sheet.querySelector("#mNewTab").addEventListener("click", function(){ close(); window.open(location.href, "_blank"); });
+      sheet.querySelector("#mProjects").addEventListener("click", function(e){
+        var closeBtn = e.target.closest(".project-close");
+        var switchBtn = e.target.closest(".project-switch");
+        if (closeBtn){ e.stopPropagation(); close(); closeTab(parseInt(closeBtn.dataset.idx, 10)); return; }
+        if (switchBtn){ close(); switchTab(parseInt(switchBtn.dataset.idx, 10)); }
+      });
+      sheet.querySelector("#mAddProject").addEventListener("click", function(){ close(); addTab(); });
       sheet.querySelector("#mFit").addEventListener("click", function(){ close(); fitToScreen(); });
       sheet.querySelector("#mArchitect").addEventListener("click", function(){
         close();
