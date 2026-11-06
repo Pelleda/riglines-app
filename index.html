@@ -1083,6 +1083,14 @@
       if (!(r > 0)) return;
       put(0,"CIRCLE",8,"0",10,wx(cx).toFixed(4),20,wy(cy).toFixed(4),40,pxToM(r).toFixed(4));
     }
+    function entEllipse(cx,cy,rx,ry){
+      if (!(rx > 0) || !(ry > 0)) return;
+      var major = Math.max(rx, ry), minor = Math.min(rx, ry);
+      var majorX = rx >= ry ? major : 0, majorY = rx >= ry ? 0 : major;
+      put(0,"ELLIPSE",8,"0",10,wx(cx).toFixed(4),20,wy(cy).toFixed(4),
+        11,pxToM(majorX).toFixed(4),21,pxToM(majorY).toFixed(4),31,"0",
+        40,(minor/major).toFixed(6),41,"0",42,(Math.PI*2).toFixed(6));
+    }
     function entText(x,y,h,text){
       if (!text) return;
       put(0,"TEXT",8,"0",10,wx(x).toFixed(4),20,wy(y).toFixed(4),40,h.toFixed(3),1,String(text).replace(/[\r\n]+/g," "));
@@ -1101,8 +1109,14 @@
       } else if (s.type === "circle"){
         entCircle(s.cx, s.cy, s.r);
       } else if (s.type === "ring"){
-        entCircle(s.cx, s.cy, s.rOuter);
-        entCircle(s.cx, s.cy, s.rInner);
+        var dxfRingRY = s.rOuterY || s.rOuter;
+        if (dxfRingRY === s.rOuter){
+          entCircle(s.cx, s.cy, s.rOuter);
+          entCircle(s.cx, s.cy, s.rInner);
+        } else {
+          entEllipse(s.cx, s.cy, s.rOuter, dxfRingRY);
+          entEllipse(s.cx, s.cy, s.rInner, s.rInner*(dxfRingRY/s.rOuter));
+        }
       } else if (s.type === "triangle"){
         entPolyline(s.points, true);
       } else if (s.type === "polyline"){
@@ -2334,8 +2348,10 @@
       } else if (cs.type === "circle"){
         el("circle", {cx:cs.cx, cy:cs.cy, r:cs.r, fill:"none", stroke:cs.color, "stroke-width":2}, parent);
       } else if (cs.type === "ring"){
-        el("circle", {cx:cs.cx, cy:cs.cy, r:cs.rOuter, fill:"none", stroke:cs.color, "stroke-width":2}, parent);
-        el("circle", {cx:cs.cx, cy:cs.cy, r:cs.rInner, fill:"none", stroke:cs.color, "stroke-width":1.4}, parent);
+        var cpRingRY = cs.rOuterY || cs.rOuter;
+        var cpRingAspect = cpRingRY / cs.rOuter;
+        el("ellipse", {cx:cs.cx, cy:cs.cy, rx:cs.rOuter, ry:cpRingRY, fill:"none", stroke:cs.color, "stroke-width":2}, parent);
+        el("ellipse", {cx:cs.cx, cy:cs.cy, rx:cs.rInner, ry:cs.rInner*cpRingAspect, fill:"none", stroke:cs.color, "stroke-width":1.4}, parent);
       } else if (cs.type === "net"){
         var nx = Math.min(cs.x,cs.x+cs.w), ny = Math.min(cs.y,cs.y+cs.h);
         drawMesh(parent, cs.id, nx, ny, Math.abs(cs.w), Math.abs(cs.h), cs.color, mToPx(cs.mesh || 0.15));
@@ -3323,7 +3339,7 @@
     } else if (s.type === "circle"){
       attachX = s.cx; attachY = s.cy - s.r;
     } else if (s.type === "ring"){
-      attachX = s.cx; attachY = s.cy - s.rOuter;
+      attachX = s.cx; attachY = s.cy - (s.rOuterY||s.rOuter);
     } else {
       return null;
     }
@@ -3572,9 +3588,12 @@
           cl.style.fill = s.color;
         }
       } else if (s.type === "ring"){
-        el("circle", {cx:s.cx, cy:s.cy, r:s.rOuter, fill:"none", stroke:s.color, "stroke-width":2, "pointer-events":"all"}, g);
-        el("circle", {cx:s.cx, cy:s.cy, r:s.rInner, fill:"none", stroke:s.color, "stroke-width":1.4, "stroke-dasharray":"3 2"}, g);
-        var ringText = labelTextOverride(s, "⌀ " + fmtLen(pxToM(s.rOuter*2)) + " / " + fmtLen(pxToM(s.rInner*2)));
+        var ringRY = s.rOuterY || s.rOuter;
+        var ringAspect = ringRY / s.rOuter;
+        el("ellipse", {cx:s.cx, cy:s.cy, rx:s.rOuter, ry:ringRY, fill:"none", stroke:s.color, "stroke-width":2, "pointer-events":"all"}, g);
+        el("ellipse", {cx:s.cx, cy:s.cy, rx:s.rInner, ry:s.rInner*ringAspect, fill:"none", stroke:s.color, "stroke-width":1.4, "stroke-dasharray":"3 2"}, g);
+        var ringOuterLabel = ringRY === s.rOuter ? ("⌀ " + fmtLen(pxToM(s.rOuter*2))) : (fmtLen(pxToM(s.rOuter*2)) + "×" + fmtLen(pxToM(ringRY*2)));
+        var ringText = labelTextOverride(s, ringOuterLabel + " / " + fmtLen(pxToM(s.rInner*2)));
         if (ringText){
           var ringAnchor = labelAnchor(s);
           if (labelIsMoved(s)) drawLabelLeader(g, ringAnchor);
@@ -3678,7 +3697,8 @@
             el("circle", {cx:s.cx+s.r, cy:s.cy, r:5, class:"handle", "data-handle":"r", "data-id":s.id}, handlesLayer);
           } else if (s.type === "ring"){
             el("circle", {cx:s.cx+s.rOuter, cy:s.cy, r:5, class:"handle", "data-handle":"rOuter", "data-id":s.id}, handlesLayer);
-            el("circle", {cx:s.cx, cy:s.cy-s.rInner, r:5, class:"handle", "data-handle":"rInner", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:s.cx, cy:s.cy-(s.rOuterY||s.rOuter), r:5, class:"handle", "data-handle":"rOuterY", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:s.cx+s.rInner*0.7071, cy:s.cy-s.rInner*0.7071, r:5, class:"handle", "data-handle":"rInner", "data-id":s.id}, handlesLayer);
           } else if (s.type === "triangle" || s.type === "polyline"){
             s.points.forEach(function(pt, pi){
               el("circle", {cx:pt[0], cy:pt[1], r:5, class:"handle", "data-handle":String(pi), "data-id":s.id}, handlesLayer);
@@ -3717,7 +3737,7 @@
     if (s.type==="line" || s.type==="measure") return {x:Math.min(s.x1,s.x2), y:Math.min(s.y1,s.y2), w:Math.abs(s.x2-s.x1), h:Math.abs(s.y2-s.y1)};
     if (s.type==="rect" || s.type==="net" || s.type==="image" || s.type==="callout") return {x:Math.min(s.x,s.x+s.w), y:Math.min(s.y,s.y+s.h), w:Math.abs(s.w), h:Math.abs(s.h)};
     if (s.type==="circle") return {x:s.cx-s.r, y:s.cy-s.r, w:s.r*2, h:s.r*2};
-    if (s.type==="ring") return {x:s.cx-s.rOuter, y:s.cy-s.rOuter, w:s.rOuter*2, h:s.rOuter*2};
+    if (s.type==="ring") return {x:s.cx-s.rOuter, y:s.cy-(s.rOuterY||s.rOuter), w:s.rOuter*2, h:(s.rOuterY||s.rOuter)*2};
     if (s.type==="triangle" || s.type==="polyline"){
       var xs=s.points.map(function(p){return p[0];}), ys=s.points.map(function(p){return p[1];});
       var minx=Math.min.apply(null,xs), maxx=Math.max.apply(null,xs), miny=Math.min.apply(null,ys), maxy=Math.max.apply(null,ys);
@@ -4217,8 +4237,12 @@
       numRow("Diameter (m)", pxToM(s.r*2).toFixed(3), function(v){ s.r = mToPx(v)/2; });
       appendLabelControls(s);
     } else if (s.type === "ring"){
-      numRow("Outer Ø (m)", pxToM(s.rOuter*2).toFixed(3), function(v){ s.rOuter = mToPx(v)/2; });
+      numRow("Outer width (m)", pxToM(s.rOuter*2).toFixed(3), function(v){ s.rOuter = mToPx(v)/2; });
+      numRow("Outer height (m)", pxToM((s.rOuterY||s.rOuter)*2).toFixed(3), function(v){ s.rOuterY = mToPx(v)/2; });
       numRow("Inner Ø (m)", pxToM(s.rInner*2).toFixed(3), function(v){ s.rInner = Math.min(mToPx(v)/2, s.rOuter-1); });
+      var ovalNote = document.createElement("p"); ovalNote.className = "empty";
+      ovalNote.textContent = "Set width and height differently for an oval ring. The inner hole follows the same proportions automatically.";
+      propsEl.appendChild(ovalNote);
       appendLabelControls(s);
     } else if (s.type === "text"){
       var row = document.createElement("div"); row.className = "row";
@@ -4599,7 +4623,8 @@
         } else if (s.type === "circle"){
           s.r = Math.max(4, Math.hypot(p.x - s.cx, p.y - s.cy));
         } else if (s.type === "ring"){
-          if (dragging.which === "rOuter"){ s.rOuter = Math.max(s.rInner + 2, Math.hypot(p.x - s.cx, p.y - s.cy)); }
+          if (dragging.which === "rOuter"){ s.rOuter = Math.max(s.rInner + 2, Math.abs(p.x - s.cx)); }
+          else if (dragging.which === "rOuterY"){ s.rOuterY = Math.max((s.rInner||2) + 2, Math.abs(p.y - s.cy)); }
           else if (dragging.which === "rInner"){ s.rInner = Math.min(s.rOuter - 2, Math.max(2, Math.hypot(p.x - s.cx, p.y - s.cy))); }
         } else if (s.type === "triangle" || s.type === "polyline"){
           var vi = parseInt(dragging.which, 10);
