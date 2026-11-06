@@ -1107,7 +1107,8 @@
       } else if (s.type === "rect" || s.type === "net"){
         entPolyline([[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]], true);
       } else if (s.type === "circle"){
-        entCircle(s.cx, s.cy, s.r);
+        if (s.ry && s.ry !== s.r) entEllipse(s.cx, s.cy, s.r, s.ry);
+        else entCircle(s.cx, s.cy, s.r);
       } else if (s.type === "ring"){
         var dxfRingRY = s.rOuterY || s.rOuter;
         if (dxfRingRY === s.rOuter){
@@ -2346,7 +2347,7 @@
       } else if (cs.type === "rect"){
         el("rect", {x:Math.min(cs.x,cs.x+cs.w), y:Math.min(cs.y,cs.y+cs.h), width:Math.abs(cs.w), height:Math.abs(cs.h), fill:"none", stroke:cs.color, "stroke-width":2}, parent);
       } else if (cs.type === "circle"){
-        el("circle", {cx:cs.cx, cy:cs.cy, r:cs.r, fill:"none", stroke:cs.color, "stroke-width":2}, parent);
+        el("ellipse", {cx:cs.cx, cy:cs.cy, rx:cs.r, ry:cs.ry||cs.r, fill:"none", stroke:cs.color, "stroke-width":2}, parent);
       } else if (cs.type === "ring"){
         var cpRingRY = cs.rOuterY || cs.rOuter;
         var cpRingAspect = cpRingRY / cs.rOuter;
@@ -3337,7 +3338,7 @@
       var ax = Math.min(s.x,s.x+s.w), ay = Math.min(s.y,s.y+s.h), aw = Math.abs(s.w);
       attachX = ax + aw/2; attachY = ay;
     } else if (s.type === "circle"){
-      attachX = s.cx; attachY = s.cy - s.r;
+      attachX = s.cx; attachY = s.cy - (s.ry||s.r);
     } else if (s.type === "ring"){
       attachX = s.cx; attachY = s.cy - (s.rOuterY||s.rOuter);
     } else {
@@ -3578,8 +3579,10 @@
           wl.style.fill = s.color;
         }
       } else if (s.type === "circle"){
-        el("circle", {cx:s.cx, cy:s.cy, r:s.r, fill:"none", stroke:s.color, "stroke-width":2, "pointer-events":"all"}, g);
-        var circleText = labelTextOverride(s, "⌀ " + fmtLen(pxToM(s.r*2)));
+        var circleRY = s.ry || s.r;
+        el("ellipse", {cx:s.cx, cy:s.cy, rx:s.r, ry:circleRY, fill:"none", stroke:s.color, "stroke-width":2, "pointer-events":"all"}, g);
+        var circleLabel = circleRY === s.r ? ("⌀ " + fmtLen(pxToM(s.r*2))) : (fmtLen(pxToM(s.r*2)) + "×" + fmtLen(pxToM(circleRY*2)));
+        var circleText = labelTextOverride(s, circleLabel);
         if (circleText){
           var cAnchor = labelAnchor(s);
           if (labelIsMoved(s)) drawLabelLeader(g, cAnchor);
@@ -3695,6 +3698,7 @@
             }
           } else if (s.type === "circle"){
             el("circle", {cx:s.cx+s.r, cy:s.cy, r:5, class:"handle", "data-handle":"r", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:s.cx, cy:s.cy-(s.ry||s.r), r:5, class:"handle", "data-handle":"ry", "data-id":s.id}, handlesLayer);
           } else if (s.type === "ring"){
             el("circle", {cx:s.cx+s.rOuter, cy:s.cy, r:5, class:"handle", "data-handle":"rOuter", "data-id":s.id}, handlesLayer);
             el("circle", {cx:s.cx, cy:s.cy-(s.rOuterY||s.rOuter), r:5, class:"handle", "data-handle":"rOuterY", "data-id":s.id}, handlesLayer);
@@ -3736,7 +3740,7 @@
   function boundsOf(s){
     if (s.type==="line" || s.type==="measure") return {x:Math.min(s.x1,s.x2), y:Math.min(s.y1,s.y2), w:Math.abs(s.x2-s.x1), h:Math.abs(s.y2-s.y1)};
     if (s.type==="rect" || s.type==="net" || s.type==="image" || s.type==="callout") return {x:Math.min(s.x,s.x+s.w), y:Math.min(s.y,s.y+s.h), w:Math.abs(s.w), h:Math.abs(s.h)};
-    if (s.type==="circle") return {x:s.cx-s.r, y:s.cy-s.r, w:s.r*2, h:s.r*2};
+    if (s.type==="circle") return {x:s.cx-s.r, y:s.cy-(s.ry||s.r), w:s.r*2, h:(s.ry||s.r)*2};
     if (s.type==="ring") return {x:s.cx-s.rOuter, y:s.cy-(s.rOuterY||s.rOuter), w:s.rOuter*2, h:(s.rOuterY||s.rOuter)*2};
     if (s.type==="triangle" || s.type==="polyline"){
       var xs=s.points.map(function(p){return p[0];}), ys=s.points.map(function(p){return p[1];});
@@ -4234,7 +4238,11 @@
       imgNote.textContent = "Reference image — for tracing over, not counted in Totals. Drag a corner to resize, or drag it to move.";
       propsEl.appendChild(imgNote);
     } else if (s.type === "circle"){
-      numRow("Diameter (m)", pxToM(s.r*2).toFixed(3), function(v){ s.r = mToPx(v)/2; });
+      numRow("Width (m)", pxToM(s.r*2).toFixed(3), function(v){ s.r = mToPx(v)/2; });
+      numRow("Height (m)", pxToM((s.ry||s.r)*2).toFixed(3), function(v){ s.ry = mToPx(v)/2; });
+      var ovalNote2 = document.createElement("p"); ovalNote2.className = "empty";
+      ovalNote2.textContent = "Set width and height differently for an oval.";
+      propsEl.appendChild(ovalNote2);
       appendLabelControls(s);
     } else if (s.type === "ring"){
       numRow("Outer width (m)", pxToM(s.rOuter*2).toFixed(3), function(v){ s.rOuter = mToPx(v)/2; });
@@ -4621,7 +4629,8 @@
           else if (dragging.which === "r"){ right = p.x; }
           s.x = left; s.y = top; s.w = right - left; s.h = bottom - top;
         } else if (s.type === "circle"){
-          s.r = Math.max(4, Math.hypot(p.x - s.cx, p.y - s.cy));
+          if (dragging.which === "ry"){ s.ry = Math.max(4, Math.abs(p.y - s.cy)); }
+          else { s.r = Math.max(4, Math.abs(p.x - s.cx)); }
         } else if (s.type === "ring"){
           if (dragging.which === "rOuter"){ s.rOuter = Math.max(s.rInner + 2, Math.abs(p.x - s.cx)); }
           else if (dragging.which === "rOuterY"){ s.rOuterY = Math.max((s.rInner||2) + 2, Math.abs(p.y - s.cy)); }
