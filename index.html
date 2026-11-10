@@ -1692,6 +1692,22 @@
       [[-6,-6],[6,-6],[-6,6],[6,6]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.3}, s), g); });
       el("circle", Object.assign({cx:0, cy:0, r:3}, s), g);
       el("line", Object.assign({x1:0, y1:-10, x2:0, y2:-17}, s), g);
+    } else if (kind === "plateA"){
+      el("rect", Object.assign({x:-13, y:-9, width:26, height:18, rx:1}, s), g);
+      [[-9,-5],[9,-5],[-9,5],[9,5]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.3}, s), g); });
+      el("rect", Object.assign({x:-3, y:-19, width:6, height:19, rx:1}, s), g);
+      el("circle", Object.assign({cx:0, cy:-14, r:1.3}, s), g);
+      el("circle", Object.assign({cx:0, cy:-5, r:1.3}, s), g);
+    } else if (kind === "plateB"){
+      el("path", Object.assign({d:"M -13 -8 L 8 -10 L 14 0 L 8 10 L -13 8 Z"}, s), g);
+      [[-8,-3],[-8,4],[5,0]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.3}, s), g); });
+      el("path", Object.assign({d:"M 5 -10 L 16 -14 L 20 -6 L 10 -3 Z"}, s), g);
+      el("circle", Object.assign({cx:14, cy:-9, r:1.3}, s), g);
+    } else if (kind === "plateC"){
+      el("rect", Object.assign({x:-11, y:-11, width:22, height:22, rx:1}, s), g);
+      [[-7,-7],[7,-7],[-7,7],[7,7]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:1.3}, s), g); });
+      el("rect", Object.assign({x:-4, y:-4, width:8, height:8, rx:1}, s), g);
+      el("circle", Object.assign({cx:0, cy:0, r:1.6}, s), g);
     } else if (kind === "anglesection"){
       el("path", Object.assign({d:"M -12 -4 L -12 12 L 4 12"}, s), g);
       el("path", Object.assign({d:"M -8 -4 L -8 8 L 4 8"}, s), g);
@@ -1901,6 +1917,9 @@
     {kind:"turnbuckle", label:"Turnbuckle", cat:"Tensioning"},
     {kind:"poststack", label:"Post fitting", cat:"Structural attachment"},
     {kind:"anchorplate", label:"Anchor plate", cat:"Structural attachment"},
+    {kind:"plateA", label:"Plate A (base plate, welded fork)", cat:"Structural attachment"},
+    {kind:"plateB", label:"Plate B (angled corner plate)", cat:"Structural attachment"},
+    {kind:"plateC", label:"Plate C (anchor plate, post boss)", cat:"Structural attachment"},
     {kind:"anglesection", label:"Angle section", cat:"Structural attachment"},
     {kind:"tubebracket", label:"Tube bracket / lug for welding", cat:"Structural attachment"},
     {kind:"railc", label:"Rail-C", cat:"Structural attachment"},
