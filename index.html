@@ -1753,9 +1753,9 @@
       el("path", Object.assign({d:"M 0 -12 C 7 -7 7 7 0 12 C -7 7 -7 -7 0 -12 Z"}, s), g);
       el("path", Object.assign({d:"M 0 -7 C 3.5 -4 3.5 4 0 7 C -3.5 4 -3.5 -4 0 -7 Z"}, s), g);
     } else if (kind === "poststack"){
-      el("rect", Object.assign({x:-11, y:9, width:22, height:4, rx:1}, s), g);
-      el("line", Object.assign({x1:0, y1:9, x2:0, y2:-13}, s), g);
-      el("circle", Object.assign({cx:0, cy:-14, r:2.6}, s), g);
+      el("rect", Object.assign({x:-12, y:10, width:24, height:4, rx:1}, s), g);
+      el("line", Object.assign({x1:0, y1:10, x2:0, y2:-12}, s), g);
+      el("line", Object.assign({x1:-3, y1:-12, x2:3, y2:-12}, s), g);
     } else if (kind === "hook"){
       el("circle", Object.assign({cx:0, cy:-14}, s, {r:3.5}), g);
       el("line", Object.assign({x1:0, y1:-10.5, x2:0, y2:-4}, s), g);
@@ -1923,16 +1923,16 @@
       el("path", Object.assign({d:"M -2 -6 L -7 8 L 7 8 L 2 -6 Z"}, s), g);
       el("line", Object.assign({x1:0, y1:8, x2:0, y2:16}, s), g);
     } else if (kind === "spacer"){
-      el("rect", Object.assign({x:-4, y:-13, width:8, height:20, rx:1.5}, s), g);
-      el("line", Object.assign({x1:-4, y1:9, x2:4, y2:9}, s), g);
+      el("rect", Object.assign({x:-7, y:9, width:14, height:4, rx:1}, s), g);
+      el("rect", Object.assign({x:-3.5, y:-13, width:7, height:22, rx:1.5}, s), g);
     } else if (kind === "standoffGG"){
       el("circle", Object.assign({cx:0, cy:-14, r:6}, s), g);
       el("line", Object.assign({x1:0, y1:-8, x2:0, y2:12}, s), g);
       el("circle", Object.assign({cx:0, cy:14, r:2.5}, s), g);
     } else if (kind === "spacerwasher" || kind === "spacerWebnet" || kind === "spacerGT"){
-      el("rect", Object.assign({x:-4, y:-11, width:8, height:22, rx:1}, s), g);
-      el("line", Object.assign({x1:-6, y1:-9, x2:6, y2:-9}, s), g);
-      el("line", Object.assign({x1:-6, y1:9, x2:6, y2:9}, s), g);
+      el("rect", Object.assign({x:-7, y:9, width:14, height:4, rx:1}, s), g);
+      el("rect", Object.assign({x:-3.5, y:-11, width:7, height:20, rx:1.5}, s), g);
+      el("rect", Object.assign({x:-6, y:-13, width:12, height:3, rx:1}, s), g);
     } else if (kind === "holderMulti"){
       el("circle", Object.assign({cx:0, cy:0, r:14}, s), g);
       el("circle", Object.assign({cx:-3.4, cy:-9.1, r:2.2}, s), g);
@@ -1968,28 +1968,28 @@
       el("rect", Object.assign({x:-6, y:-6, width:12, height:12}, s), g);
       [[-3,-3],[3,-3],[-3,3],[3,3]].forEach(function(pt){ el("circle", Object.assign({cx:pt[0], cy:pt[1], r:0.9}, s), g); });
     } else if (kind === "clevisholder0"){
-      el("circle", Object.assign({cx:0, cy:0, r:8, fill:"none"}, s), g);
-      el("circle", Object.assign({cx:-3, cy:-13, r:2.2}, s), g);
-      el("circle", Object.assign({cx:3, cy:-13, r:2.2}, s), g);
-      el("line", Object.assign({x1:-3, y1:-8.5, x2:-3, y2:-10.8}, s), g);
-      el("line", Object.assign({x1:3, y1:-8.5, x2:3, y2:-10.8}, s), g);
+      // flat teardrop plate, 2 holes inline (matches Jakob 30897-0012 photo)
+      el("path", Object.assign({d:"M 0 -14 C 5 -10 8 -2 8 4 C 8 10 4 14 0 14 C -4 14 -8 10 -8 4 C -8 -2 -5 -10 0 -14 Z", fill:"none"}, s), g);
+      el("circle", Object.assign({cx:0, cy:-6, r:2}, s), g);
+      el("circle", Object.assign({cx:0, cy:6, r:2.6}, s), g);
     } else if (kind === "clevisholder90"){
-      el("circle", Object.assign({cx:0, cy:0, r:8, fill:"none"}, s), g);
-      el("circle", Object.assign({cx:0, cy:-13, r:2.2}, s), g);
-      el("circle", Object.assign({cx:13, cy:0, r:2.2}, s), g);
-      el("line", Object.assign({x1:0, y1:-8, x2:0, y2:-10.8}, s), g);
-      el("line", Object.assign({x1:8, y1:0, x2:10.8, y2:0}, s), g);
+      // flat rounded "guitar pick" plate, 4 holes (matches Jakob 30897-0011 photo)
+      el("path", Object.assign({d:"M -2 -14 L 12 -2 L 2 13 L -9 10 L -10 -4 Z", fill:"none", "stroke-linejoin":"round"}, s), g);
+      el("circle", Object.assign({cx:1, cy:-6, r:1.8}, s), g);
+      el("circle", Object.assign({cx:-5, cy:-1, r:1.8}, s), g);
+      el("circle", Object.assign({cx:-6, cy:6, r:1.8}, s), g);
+      el("circle", Object.assign({cx:4, cy:4, r:1.8}, s), g);
     } else if (kind === "clevisholder180"){
-      el("path", Object.assign({d:"M -18 4 C -18 -3 -14 -6 -9 -6 C -6 -8 6 -8 9 -6 C 14 -6 18 -3 18 4 C 18 8 14 10 9 8 C 6 10 -6 10 -9 8 C -14 10 -18 8 -18 4 Z"}, s), g);
-      el("line", Object.assign({x1:-9, y1:-6, x2:-9, y2:8}, s), g);
-      el("line", Object.assign({x1:9, y1:-6, x2:9, y2:8}, s), g);
-      el("circle", Object.assign({cx:-13, cy:1, r:2.2}, s), g);
-      el("circle", Object.assign({cx:13, cy:1, r:2.2}, s), g);
+      // flat D-shaped plate, 6 holes in two rows (matches Jakob 30897-0010 photo)
+      el("path", Object.assign({d:"M -13 2 C -13 -8 -7 -13 0 -13 C 7 -13 13 -8 13 2 C 13 6 10 8 6 7 L -6 7 C -10 8 -13 6 -13 2 Z", fill:"none"}, s), g);
+      [-8,0,8].forEach(function(hx){ el("circle", Object.assign({cx:hx, cy:-5, r:1.6}, s), g); });
+      [-8,0,8].forEach(function(hx){ el("circle", Object.assign({cx:hx, cy:3, r:1.6}, s), g); });
     } else if (kind === "clevisholder360"){
-      el("circle", Object.assign({cx:0, cy:0, r:9}, s), g);
-      [0,60,120,180,240,300].forEach(function(deg){
+      // round flange disc, 8 holes on a bolt circle (matches Jakob 30897-0009 photo)
+      el("circle", Object.assign({cx:0, cy:0, r:13, fill:"none"}, s), g);
+      [0,45,90,135,180,225,270,315].forEach(function(deg){
         var crad = deg*Math.PI/180;
-        el("line", Object.assign({x1:6*Math.cos(crad), y1:6*Math.sin(crad), x2:15*Math.cos(crad), y2:15*Math.sin(crad)}, s), g);
+        el("circle", Object.assign({cx:9*Math.cos(crad), cy:9*Math.sin(crad), r:1.5}, s), g);
       });
       el("circle", Object.assign({cx:0, cy:0, r:2}, s), g);
     } else if (kind === "standoffWebnet"){
