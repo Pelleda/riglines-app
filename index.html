@@ -132,12 +132,10 @@
   .worktable-item{
     position:relative; display:flex; flex-direction:column; align-items:center; gap:2px;
     padding:6px 2px 4px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel-2);
+    cursor:pointer;
   }
+  .worktable-item:hover{ border-color:var(--accent); background:var(--accent-soft); }
   .worktable-item svg{ width:24px; height:24px; }
-  .worktable-item .wt-dup{
-    border:none; background:var(--accent-soft); color:var(--accent); border-radius:3px; font-size:9px;
-    padding:1px 4px; cursor:pointer; margin-top:2px;
-  }
   .worktable-item .wt-remove{
     position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:none;
     cursor:pointer; font-size:10px; line-height:1; color:var(--ink-faint);
@@ -4458,14 +4456,12 @@
     } else {
       state.workTable.shapes.forEach(function(item){
         var cell = document.createElement("div"); cell.className = "worktable-item";
+        cell.title = "Click to select this part, then click on the sheet to place a real, counted copy";
         var svgWrap = document.createElementNS(NS, "svg");
         svgWrap.setAttribute("viewBox", "-20 -20 40 40");
         svgWrap.appendChild(buildPart(item.partType, item.color || "currentColor"));
         cell.appendChild(svgWrap);
-        var dup = document.createElement("button"); dup.type = "button"; dup.className = "wt-dup";
-        dup.textContent = "Place"; dup.title = "Select this part, then click on the sheet to place a real, counted copy";
-        dup.addEventListener("click", function(e){ e.stopPropagation(); duplicateFromWorkTable(item); });
-        cell.appendChild(dup);
+        cell.addEventListener("click", function(){ duplicateFromWorkTable(item); });
         var rm = document.createElement("button"); rm.type = "button"; rm.className = "wt-remove";
         rm.textContent = "✕"; rm.title = "Remove from work table";
         rm.addEventListener("click", function(e){ e.stopPropagation(); removeFromWorkTable(item.id); });
