@@ -173,7 +173,15 @@
   body.focus-mode .ruler-corner,
   body.focus-mode .ruler-h,
   body.focus-mode .ruler-v{ display:none; }
-  body.focus-mode .canvas-rulers{ grid-template-columns:0 1fr; grid-template-rows:0 1fr; }
+  /* Deliberately NOT resizing .canvas-rulers' grid tracks here (e.g. to 0 1fr)
+     even though rulers are hidden above — toggling grid-template-columns via
+     this class causes Chromium to cache a stale, viewport-width track size for
+     the canvas column that never gets invalidated on exit (confirmed: survives
+     forced reflows and even detaching/reattaching every ancestor up to .app),
+     so canvasWrap ends up wider than its flex box and visually covers the
+     right sidebar until something (observed: scrolling) forces a full
+     recompute. Leaving the 18px ruler gutter reserved (just empty) in focus
+     mode avoids the bug entirely. */
   body.focus-mode header{
     position:fixed; top:0; left:0; right:0; z-index:60;
     transform:translateY(-100%); transition:transform .15s ease;
@@ -5502,6 +5510,19 @@
   canvasWrap.addEventListener("gestureend", function(e){ e.preventDefault(); });
   canvasWrap.addEventListener("scroll", drawRulers);
   window.addEventListener("resize", drawRulers);
+  // Chromium can get canvasWrap's CSS-grid "1fr" track size permanently wrong
+  // after an ancestor (sidebar/header/footer) flips display:none<->flex — it
+  // sticks to a stale, too-wide value that survives reflows, resizes, even
+  // detaching/reattaching every ancestor. Managing the size explicitly in JS
+  // sidesteps the bug entirely. .canvas-rulers' first track is a fixed 18px.
+  function syncCanvasWrapSize(){
+    var cr = canvasWrap.parentElement;
+    if (!cr || !cr.clientWidth || !cr.clientHeight) return;
+    canvasWrap.style.width = (cr.clientWidth - 18) + "px";
+    canvasWrap.style.height = (cr.clientHeight - 18) + "px";
+  }
+  window.addEventListener("resize", syncCanvasWrapSize);
+  syncCanvasWrapSize();
   document.getElementById("zoomReset").addEventListener("click", function(){
     zoom = 1; applyZoom();
   });
@@ -5738,17 +5759,7 @@
     var fb = document.getElementById("focusBtn");
     fb.setAttribute("aria-pressed", String(on));
     fb.textContent = on ? "Show panels" : "Focus";
-    requestAnimationFrame(function(){
-      drawRulers();
-      // The header/tools bars flip between position:fixed+transform (focus mode)
-      // and normal flow. Some browsers leave a stale painted fragment of them
-      // behind after that switch until something forces a repaint — a tiny
-      // no-op scroll (same thing manually scrolling toward that edge was doing)
-      // forces it reliably.
-      var st = canvasWrap.scrollTop;
-      canvasWrap.scrollTop = st + 1;
-      canvasWrap.scrollTop = st;
-    });
+    requestAnimationFrame(function(){ syncCanvasWrapSize(); drawRulers(); });
   }
   document.getElementById("focusBtn").addEventListener("click", function(){
     setFocusMode(!document.body.classList.contains("focus-mode"));
