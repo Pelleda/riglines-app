@@ -5738,7 +5738,17 @@
     var fb = document.getElementById("focusBtn");
     fb.setAttribute("aria-pressed", String(on));
     fb.textContent = on ? "Show panels" : "Focus";
-    requestAnimationFrame(function(){ drawRulers(); });
+    requestAnimationFrame(function(){
+      drawRulers();
+      // The header/tools bars flip between position:fixed+transform (focus mode)
+      // and normal flow. Some browsers leave a stale painted fragment of them
+      // behind after that switch until something forces a repaint — a tiny
+      // no-op scroll (same thing manually scrolling toward that edge was doing)
+      // forces it reliably.
+      var st = canvasWrap.scrollTop;
+      canvasWrap.scrollTop = st + 1;
+      canvasWrap.scrollTop = st;
+    });
   }
   document.getElementById("focusBtn").addEventListener("click", function(){
     setFocusMode(!document.body.classList.contains("focus-mode"));
