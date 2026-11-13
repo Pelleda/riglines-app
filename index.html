@@ -111,6 +111,43 @@
   .totals-box .totals-title{ font-weight:600; margin-bottom:4px; }
   .totals-box .totals-row{ display:flex; align-items:center; gap:6px; padding:1px 0; }
   .totals-box .totals-dot{ width:9px; height:9px; border-radius:2px; flex:0 0 auto; border:0.5px solid var(--border); }
+  .worktable-panel{
+    position:fixed; z-index:7; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow); width:230px; max-height:70vh;
+    display:flex; flex-direction:column; font-family:"IBM Plex Mono",monospace; font-size:var(--fs-xs);
+  }
+  .worktable-header{
+    display:flex; align-items:center; gap:4px; padding:6px 8px; border-bottom:1px solid var(--border);
+    font-weight:600; color:var(--ink);
+  }
+  .worktable-panel.unstuck .worktable-header{ cursor:move; }
+  .worktable-header .worktable-title{ flex:1 1 auto; }
+  .worktable-header button{
+    border:none; background:none; cursor:pointer; color:var(--ink-soft); padding:2px 4px; font-size:12px;
+  }
+  .worktable-header button:hover{ color:var(--accent); }
+  .worktable-header button[aria-pressed="true"]{ color:var(--accent); }
+  .worktable-body{ overflow-y:auto; padding:8px; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .worktable-empty{ padding:2px; color:var(--ink-faint); font-size:var(--fs-xs); grid-column:1/-1; line-height:1.4; }
+  .worktable-item{
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:2px;
+    padding:6px 2px 4px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel-2);
+  }
+  .worktable-item svg{ width:24px; height:24px; }
+  .worktable-item .wt-dup{
+    border:none; background:var(--accent-soft); color:var(--accent); border-radius:3px; font-size:9px;
+    padding:1px 4px; cursor:pointer; margin-top:2px;
+  }
+  .worktable-item .wt-remove{
+    position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:none;
+    cursor:pointer; font-size:10px; line-height:1; color:var(--ink-faint);
+  }
+  .worktable-item .wt-remove:hover{ color:var(--danger); }
+  .worktable-add{
+    position:absolute; top:1px; left:1px; width:16px; height:16px; padding:0;
+    border:none; background:none; cursor:pointer; font-size:10px; line-height:1; color:var(--ink-faint);
+  }
+  .worktable-add:hover{ color:var(--accent); }
 
   .hover-tip{
     position:fixed; z-index:9; pointer-events:none;
@@ -621,6 +658,14 @@
       </svg>
       <div id="imageOverlay"></div>
       <div class="totals-box" id="totalsBox" hidden></div>
+      <div class="worktable-panel" id="workTablePanel" hidden>
+        <div class="worktable-header" id="workTableHeader">
+          <span class="worktable-title">Work table</span>
+          <button type="button" id="workTablePinBtn" title="Stuck to the screen corner — click to unstick and drag it anywhere" aria-pressed="true">📌</button>
+          <button type="button" id="workTableCloseBtn" title="Close work table">✕</button>
+        </div>
+        <div class="worktable-body" id="workTableBody"></div>
+      </div>
       <div class="hover-tip" id="hoverTip" hidden></div>
     </div>
    </div>
@@ -679,6 +724,7 @@
     <button type="button" class="unit-btn" id="snapBtn" title="While drawing with the Cable tool (P), snap clicks onto existing shapes' endpoints/corners" aria-pressed="false">Snap</button>
     <button type="button" class="unit-btn" id="gridSnapBtn" title="Snap drawing, placing and dragging to a 0.1m grid" aria-pressed="false">Grid</button>
     <button type="button" class="unit-btn" id="totalsBtn" title="Show total cable length per color and part counts, drawn on the sheet" aria-pressed="false">Totals</button>
+    <button type="button" class="unit-btn" id="workTableBtn" title="Work table — a staging shelf for master parts you can duplicate onto the drawing; staged parts are never counted in Totals or the Production sheet" aria-pressed="false">Work table</button>
   </div>
   <div class="unit-toggle" id="unitToggle" title="Units used for all displayed measurements">
     <button type="button" class="unit-btn" data-unit="m" aria-pressed="true">m</button>
@@ -760,7 +806,8 @@
     customParts: [],
     itemCodes: {},
     unit: "m",
-    assembly: {endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false}
+    assembly: {endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false},
+    workTable: {shapes:[], sticky:true, open:false, posX:null, posY:null}
   };
   var undoStack = [];
   var redoStack = [];
@@ -805,6 +852,11 @@
   var overlayLayer = document.getElementById("overlayLayer");
   var totalsBox = document.getElementById("totalsBox");
   var showTotals = false;
+  var workTablePanel = document.getElementById("workTablePanel");
+  var workTableHeader = document.getElementById("workTableHeader");
+  var workTableBody = document.getElementById("workTableBody");
+  var workTablePinBtn = document.getElementById("workTablePinBtn");
+  var workTableBtn = document.getElementById("workTableBtn");
   var hoverTip = document.getElementById("hoverTip");
   var propsEl = document.getElementById("props");
   var hintEl = document.getElementById("hint");
@@ -1432,7 +1484,7 @@
       scale: state.scale, canvasW: state.canvasW, canvasH: state.canvasH,
       legend: state.legend, shapes: bakedShapes(), nextId: state.nextId, favParts: state.favParts,
       groups: state.groups, sections: state.sections, customParts: bakedCustomParts(),
-      itemCodes: state.itemCodes, unit: state.unit, assembly: state.assembly
+      itemCodes: state.itemCodes, unit: state.unit, assembly: state.assembly, workTable: state.workTable
     };
   }
   function hydrateState(data){
@@ -1449,6 +1501,7 @@
     state.itemCodes = data.itemCodes || {};
     state.unit = data.unit || "m";
     state.assembly = data.assembly || state.assembly;
+    state.workTable = data.workTable || {shapes:[], sticky:true, open:false, posX:null, posY:null};
     if (state.assembly && !state.assembly.colorA && state.assembly.color){
       state.assembly.colorA = state.assembly.colorB = state.assembly.colorCable = state.assembly.color;
     }
@@ -1458,7 +1511,8 @@
       scale:100, canvasW:18, canvasH:11.5,
       legend: PRESETS.map(function(p){ return {color:p.color, name:p.name, visible:true, locked:false}; }),
       shapes:[], nextId:1, favParts:[], groups:[], sections:[], customParts:[], itemCodes:{},
-      unit:"m", assembly:{endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false}
+      unit:"m", assembly:{endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false},
+      workTable:{shapes:[], sticky:true, open:false, posX:null, posY:null}
     };
   }
   function projectNameFromFile(filename){
@@ -2478,6 +2532,12 @@
       renderFavorites();
     });
     b.appendChild(star);
+    var toTable = document.createElement("button");
+    toTable.type = "button"; toTable.className = "worktable-add";
+    toTable.textContent = "🪑";
+    toTable.title = "Add a master copy to the work table (not counted in Totals)";
+    toTable.addEventListener("click", function(e){ e.stopPropagation(); addToWorkTable(kind); });
+    b.appendChild(toTable);
     b.addEventListener("click", function(){
       pendingPart = kind;
       setTool("part");
@@ -4123,6 +4183,7 @@
     renderPalette();
     renderProps();
     renderTotalsBox();
+    renderWorkTable();
     renderLayersPanel();
     renderProductionView();
     renderImageOverlay();
@@ -4370,6 +4431,115 @@
     positionTotalsBox();
   }
   window.addEventListener("resize", function(){ if (showTotals) positionTotalsBox(); });
+
+  // ---------- work table: a staging shelf for master parts, excluded from Totals/Production ----------
+  function positionWorkTablePanel(){
+    if (!state.workTable.open){ workTablePanel.hidden = true; return; }
+    workTablePanel.hidden = false;
+    workTablePanel.classList.toggle("unstuck", !state.workTable.sticky);
+    if (state.workTable.sticky || state.workTable.posX == null){
+      var r = canvasWrap.getBoundingClientRect();
+      workTablePanel.style.left = (r.right - workTablePanel.offsetWidth - 12) + "px";
+      workTablePanel.style.top = (r.top + 12) + "px";
+    } else {
+      workTablePanel.style.left = state.workTable.posX + "px";
+      workTablePanel.style.top = state.workTable.posY + "px";
+    }
+  }
+  function renderWorkTable(){
+    workTablePinBtn.setAttribute("aria-pressed", String(state.workTable.sticky));
+    workTablePinBtn.title = state.workTable.sticky
+      ? "Stuck to the screen corner — click to unstick and drag it anywhere"
+      : "Unstuck — click to stick it back to the screen corner";
+    workTableBtn.setAttribute("aria-pressed", String(state.workTable.open));
+    workTableBody.innerHTML = "";
+    if (!state.workTable.shapes.length){
+      workTableBody.innerHTML = '<div class="worktable-empty">Click 🪑 on a fitting in the Fittings list to stage a master copy here. Staged parts aren\'t counted in Totals or the Production sheet.</div>';
+    } else {
+      state.workTable.shapes.forEach(function(item){
+        var cell = document.createElement("div"); cell.className = "worktable-item";
+        var svgWrap = document.createElementNS(NS, "svg");
+        svgWrap.setAttribute("viewBox", "-20 -20 40 40");
+        svgWrap.appendChild(buildPart(item.partType, item.color || "currentColor"));
+        cell.appendChild(svgWrap);
+        var dup = document.createElement("button"); dup.type = "button"; dup.className = "wt-dup";
+        dup.textContent = "Duplicate"; dup.title = "Place a real, counted copy onto the drawing";
+        dup.addEventListener("click", function(e){ e.stopPropagation(); duplicateFromWorkTable(item); });
+        cell.appendChild(dup);
+        var rm = document.createElement("button"); rm.type = "button"; rm.className = "wt-remove";
+        rm.textContent = "✕"; rm.title = "Remove from work table";
+        rm.addEventListener("click", function(e){ e.stopPropagation(); removeFromWorkTable(item.id); });
+        cell.appendChild(rm);
+        workTableBody.appendChild(cell);
+      });
+    }
+    positionWorkTablePanel();
+  }
+  function addToWorkTable(kind){
+    state.workTable.shapes.push({id:uid(), partType:kind, color:state.color});
+    state.workTable.open = true;
+    scheduleSave();
+    renderWorkTable();
+    notify("Added to the work table — staged copies aren't counted in Totals.");
+  }
+  function removeFromWorkTable(id){
+    state.workTable.shapes = state.workTable.shapes.filter(function(x){ return x.id !== id; });
+    scheduleSave();
+    renderWorkTable();
+  }
+  function duplicateFromWorkTable(item){
+    pushUndo();
+    var wrapRect = canvasWrap.getBoundingClientRect();
+    var cx = (canvasWrap.scrollLeft + wrapRect.width/2)/zoom;
+    var cy = (canvasWrap.scrollTop + wrapRect.height/2)/zoom;
+    var jitterX = (Math.random()*2-1)*20, jitterY = (Math.random()*2-1)*20;
+    var ns = {id:uid(), type:"part", partType:item.partType, x:cx+jitterX, y:cy+jitterY, rot:0, color:item.color, opacity:1};
+    state.shapes.push(ns);
+    state.selectedId = ns.id; state.selectedIds = [ns.id];
+    notify("Duplicated onto the drawing — it now counts in Totals and the Production sheet.");
+    render();
+  }
+  window.addEventListener("resize", function(){ positionWorkTablePanel(); });
+  workTablePinBtn.addEventListener("click", function(){
+    if (state.workTable.sticky){
+      var r = workTablePanel.getBoundingClientRect();
+      state.workTable.posX = r.left; state.workTable.posY = r.top;
+    }
+    state.workTable.sticky = !state.workTable.sticky;
+    scheduleSave();
+    renderWorkTable();
+  });
+  document.getElementById("workTableCloseBtn").addEventListener("click", function(){
+    state.workTable.open = false;
+    scheduleSave();
+    positionWorkTablePanel();
+    workTableBtn.setAttribute("aria-pressed", "false");
+  });
+  workTableBtn.addEventListener("click", function(){
+    state.workTable.open = !state.workTable.open;
+    scheduleSave();
+    renderWorkTable();
+  });
+  workTableHeader.addEventListener("mousedown", function(e){
+    if (state.workTable.sticky) return;
+    if (e.target.closest("button")) return;
+    e.preventDefault();
+    var startX = e.clientX, startY = e.clientY;
+    var r0 = workTablePanel.getBoundingClientRect();
+    var origX = r0.left, origY = r0.top;
+    function onMove(ev){
+      state.workTable.posX = origX + (ev.clientX - startX);
+      state.workTable.posY = origY + (ev.clientY - startY);
+      positionWorkTablePanel();
+    }
+    function onUp(){
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      scheduleSave();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 
   // ---------- properties panel ----------
   function renderProps(){
