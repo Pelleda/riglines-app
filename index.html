@@ -998,6 +998,108 @@
     m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
     m.modal.querySelector('[data-act="ok"]').addEventListener("click", submit);
   }
+  function openArrayModal(ids){
+    var box = selectionBoundsBox(ids);
+    var defColSp = box ? Math.max(0.1, Math.round((pxToM(box.maxX-box.minX) + 0.3) * 20) / 20) : 1;
+    var defRowSp = box ? Math.max(0.1, Math.round((pxToM(box.maxY-box.minY) + 0.3) * 20) / 20) : 1;
+    var m = openModal(
+      '<h3>Array</h3>' +
+      '<div class="row" style="gap:6px;">' +
+        '<button type="button" class="btn" data-mode="rect" aria-pressed="true" style="flex:1;">Rectangular</button>' +
+        '<button type="button" class="btn" data-mode="polar" aria-pressed="false" style="flex:1;">Polar</button>' +
+      '</div>' +
+      '<div id="arrRectFields">' +
+        '<div class="row"><label>Rows</label><input type="number" class="modal-num" id="arrRows" step="1" min="1" value="2"></div>' +
+        '<div class="row"><label>Columns</label><input type="number" class="modal-num" id="arrCols" step="1" min="1" value="3"></div>' +
+        '<div class="row"><label>Row spacing (m)</label><input type="number" class="modal-num" id="arrRowSp" step="0.05"></div>' +
+        '<div class="row"><label>Column spacing (m)</label><input type="number" class="modal-num" id="arrColSp" step="0.05"></div>' +
+      '</div>' +
+      '<div id="arrPolarFields" hidden>' +
+        '<div class="row"><label>Count</label><input type="number" class="modal-num" id="arrCount" step="1" min="2" value="6"></div>' +
+        '<div class="row"><label>Total angle (°, 360 = full circle)</label><input type="number" class="modal-num" id="arrAngle" step="1" value="360"></div>' +
+        '<p class="modal-msg">Centered on the selection\'s bounding box.</p>' +
+      '</div>' +
+      '<div class="modal-actions">' +
+      '<button type="button" class="btn" data-act="cancel">Cancel</button>' +
+      '<button type="button" class="btn primary" data-act="ok">Array</button></div>',
+      "#arrRows"
+    );
+    m.modal.querySelector("#arrRowSp").value = defRowSp;
+    m.modal.querySelector("#arrColSp").value = defColSp;
+    var mode = "rect";
+    var modeBtns = m.modal.querySelectorAll("[data-mode]");
+    Array.prototype.forEach.call(modeBtns, function(b){
+      b.addEventListener("click", function(){
+        mode = b.dataset.mode;
+        Array.prototype.forEach.call(modeBtns, function(b2){ b2.setAttribute("aria-pressed", String(b2 === b)); });
+        m.modal.querySelector("#arrRectFields").hidden = mode !== "rect";
+        m.modal.querySelector("#arrPolarFields").hidden = mode !== "polar";
+      });
+    });
+    function numOrDefault(raw, def){ var v = parseFloat(raw); return isNaN(v) ? def : v; }
+    function submit(){
+      m.close();
+      if (mode === "rect"){
+        var rows = Math.max(1, Math.round(numOrDefault(m.modal.querySelector("#arrRows").value, 2)));
+        var cols = Math.max(1, Math.round(numOrDefault(m.modal.querySelector("#arrCols").value, 3)));
+        var rowSp = numOrDefault(m.modal.querySelector("#arrRowSp").value, defRowSp);
+        var colSp = numOrDefault(m.modal.querySelector("#arrColSp").value, defColSp);
+        commitRectArray(ids, rows, cols, rowSp, colSp);
+      } else {
+        var count = Math.max(2, Math.round(numOrDefault(m.modal.querySelector("#arrCount").value, 6)));
+        var angle = numOrDefault(m.modal.querySelector("#arrAngle").value, 360);
+        commitPolarArray(ids, count, angle);
+      }
+    }
+    m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
+    m.modal.querySelector('[data-act="ok"]').addEventListener("click", submit);
+  }
+  function commitRectArray(sourceIds, rows, cols, rowSpM, colSpM){
+    var origShapes = sourceIds.map(findShape).filter(Boolean);
+    if (!origShapes.length) return;
+    pushUndo();
+    var rowSpPx = mToPx(rowSpM), colSpPx = mToPx(colSpM);
+    var allIds = sourceIds.slice();
+    for (var r = 0; r < rows; r++){
+      for (var c = 0; c < cols; c++){
+        if (r === 0 && c === 0) continue;
+        var newIds = cloneShapesOffset(origShapes, c*colSpPx, r*rowSpPx);
+        allIds = allIds.concat(newIds);
+      }
+    }
+    state.selectedIds = allIds;
+    state.selectedId = allIds.length === 1 ? allIds[0] : null;
+    render(); renderProps();
+    notify("Array created — " + (rows*cols*origShapes.length) + " shapes total.");
+  }
+  function commitPolarArray(sourceIds, count, totalAngle){
+    var pivotBox = selectionBoundsBox(sourceIds);
+    if (!pivotBox) return;
+    var origShapes = sourceIds.map(findShape).filter(Boolean).map(function(s){ return JSON.parse(JSON.stringify(s)); });
+    if (!origShapes.length) return;
+    pushUndo();
+    var pivot = {x: pivotBox.cx, y: pivotBox.cy};
+    var allIds = sourceIds.slice();
+    var full = Math.abs(totalAngle - 360) < 0.01;
+    for (var i = 1; i < count; i++){
+      var angleDeg = full ? i * (360/count) : i * (totalAngle/(count-1));
+      var angRad = angleDeg * Math.PI/180;
+      origShapes.forEach(function(o){
+        var patch = rotateShapeFields(o, pivot, angRad);
+        if (!patch) return;
+        var copy = JSON.parse(JSON.stringify(o));
+        copy.id = uid();
+        delete copy.groupId; delete copy.locked; delete copy.hidden; delete copy.name;
+        for (var k in patch) copy[k] = patch[k];
+        state.shapes.push(copy);
+        allIds.push(copy.id);
+      });
+    }
+    state.selectedIds = allIds;
+    state.selectedId = allIds.length === 1 ? allIds[0] : null;
+    render(); renderProps();
+    notify("Polar array created — " + (count*origShapes.length) + " shapes total.");
+  }
   var notifyTimer = null;
   function currentHint(){
     if (state.tool === "part") return "Click on the sheet to place this fitting.";
@@ -2433,6 +2535,23 @@
     toolsEl.appendChild(makeToolBtn(t));
   });
 
+  // ---------- Array (Modify group — grid or circular copies of the selection) ----------
+  if (modifyPopover){
+    var arraySep = document.createElement("div"); arraySep.className = "tool-popover-sep";
+    modifyPopover.appendChild(arraySep);
+    var arrayBtn = document.createElement("button");
+    arrayBtn.type = "button"; arrayBtn.className = "tool-btn";
+    arrayBtn.title = "Array — repeat the selection in a grid or around a circle";
+    arrayBtn.innerHTML = '<svg viewBox="0 0 20 20"><rect x="2" y="2" width="5" height="5" fill="currentColor"/><rect x="9" y="2" width="5" height="5" fill="currentColor" opacity="0.55"/><rect x="2" y="9" width="5" height="5" fill="currentColor" opacity="0.55"/><rect x="9" y="9" width="5" height="5" fill="currentColor" opacity="0.3"/></svg><span class="tool-lbl">Array</span>';
+    arrayBtn.addEventListener("click", function(){
+      closeAllPopovers();
+      var ids = state.selectedIds.length ? state.selectedIds.slice() : (state.selectedId ? [state.selectedId] : []);
+      if (!ids.length){ notify("Select one or more shapes first, then choose Array."); return; }
+      openArrayModal(ids);
+    });
+    modifyPopover.appendChild(arrayBtn);
+  }
+
   // ---------- Colors group (bottom toolbar) ----------
   var colorsGroupEl = document.createElement("div");
   colorsGroupEl.className = "tool-group";
@@ -3705,34 +3824,43 @@
     var dx = px - pivotX, dy = py - pivotY;
     return [pivotX + dx*c - dy*sn, pivotY + dx*sn + dy*c];
   }
+  // Patch of fields that put shape `o` at the position/angle it'd have after
+  // rotating by `angRad` around `pivot` — shared by the group-rotate handle
+  // and the Polar Array action below.
+  function rotateShapeFields(o, pivot, angRad){
+    var deltaDeg = angRad * 180/Math.PI;
+    if (o.type === "line" || o.type === "measure"){
+      var p1 = rotatePointAround(o.x1,o.y1,pivot.x,pivot.y,angRad);
+      var p2 = rotatePointAround(o.x2,o.y2,pivot.x,pivot.y,angRad);
+      return {x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1]};
+    } else if (o.type === "rect" || o.type === "net"){
+      var c2 = rotatePointAround(o.x+o.w/2, o.y+o.h/2, pivot.x, pivot.y, angRad);
+      return {x: c2[0]-o.w/2, y: c2[1]-o.h/2};
+    } else if (o.type === "callout"){
+      var c3 = rotatePointAround(o.x+o.w/2, o.y+o.h/2, pivot.x, pivot.y, angRad);
+      var lp = rotatePointAround(o.lx, o.ly, pivot.x, pivot.y, angRad);
+      return {x: c3[0]-o.w/2, y: c3[1]-o.h/2, lx: lp[0], ly: lp[1]};
+    } else if (o.type === "circle" || o.type === "ring"){
+      var cc = rotatePointAround(o.cx, o.cy, pivot.x, pivot.y, angRad);
+      return {cx: cc[0], cy: cc[1]};
+    } else if (o.type === "part" || o.type === "text" || o.type === "detail"){
+      var pp = rotatePointAround(o.x, o.y, pivot.x, pivot.y, angRad);
+      var patch = {x: pp[0], y: pp[1]};
+      if (o.type === "part"){ patch.rot = (((o.rot||0) + deltaDeg) % 360 + 360) % 360; }
+      return patch;
+    } else if (o.type === "triangle" || o.type === "polyline"){
+      return {points: o.points.map(function(pt){ return rotatePointAround(pt[0], pt[1], pivot.x, pivot.y, angRad); })};
+    }
+    return null;
+  }
   function applyGroupRotation(ids, origs, pivot, deltaDeg){
     var angRad = deltaDeg * Math.PI/180;
     ids.forEach(function(id, i){
       var sh = findShape(id);
       var o = origs[i];
       if (!sh || !o) return;
-      if (sh.type === "line" || sh.type === "measure"){
-        var p1 = rotatePointAround(o.x1,o.y1,pivot.x,pivot.y,angRad);
-        var p2 = rotatePointAround(o.x2,o.y2,pivot.x,pivot.y,angRad);
-        sh.x1=p1[0]; sh.y1=p1[1]; sh.x2=p2[0]; sh.y2=p2[1];
-      } else if (sh.type === "rect" || sh.type === "net"){
-        var c2 = rotatePointAround(o.x+o.w/2, o.y+o.h/2, pivot.x, pivot.y, angRad);
-        sh.x = c2[0]-o.w/2; sh.y = c2[1]-o.h/2;
-      } else if (sh.type === "callout"){
-        var c3 = rotatePointAround(o.x+o.w/2, o.y+o.h/2, pivot.x, pivot.y, angRad);
-        sh.x = c3[0]-o.w/2; sh.y = c3[1]-o.h/2;
-        var lp = rotatePointAround(o.lx, o.ly, pivot.x, pivot.y, angRad);
-        sh.lx = lp[0]; sh.ly = lp[1];
-      } else if (sh.type === "circle" || sh.type === "ring"){
-        var cc = rotatePointAround(o.cx, o.cy, pivot.x, pivot.y, angRad);
-        sh.cx = cc[0]; sh.cy = cc[1];
-      } else if (sh.type === "part" || sh.type === "text" || sh.type === "detail"){
-        var pp = rotatePointAround(o.x, o.y, pivot.x, pivot.y, angRad);
-        sh.x = pp[0]; sh.y = pp[1];
-        if (sh.type === "part"){ sh.rot = (((o.rot||0) + deltaDeg) % 360 + 360) % 360; }
-      } else if (sh.type === "triangle" || sh.type === "polyline"){
-        sh.points = o.points.map(function(pt){ return rotatePointAround(pt[0], pt[1], pivot.x, pivot.y, angRad); });
-      }
+      var patch = rotateShapeFields(o, pivot, angRad);
+      if (patch) for (var k in patch) sh[k] = patch[k];
     });
   }
   function rotateSelectionByAngle(deltaDeg){
