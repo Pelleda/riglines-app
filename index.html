@@ -5237,6 +5237,15 @@
       return;
     }
 
+    // Line tool, second click: a prior click (no drag) left the line "aiming" —
+    // this click sets the end point and finalizes, Rhino-style (click, move to
+    // aim, click or type a length — no need to hold the mouse button down).
+    if (state.tool === "line" && draft && draft.type === "line" && draft.pendingClick){
+      draft.x2 = p.x; draft.y2 = p.y;
+      finalizeDraftShape();
+      return;
+    }
+
     // line / rect / circle / ring / callout box: drag-to-create
     draft = {type: state.tool, x1:p.x, y1:p.y, x2:p.x, y2:p.y};
     if (state.tool === "callout") draft.phase = "box";
@@ -5536,6 +5545,12 @@
         : null;
       renderOverlayClear();
       render();
+      return;
+    }
+    if (draft && draft.type === "line" && !draft.pendingClick && Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1) <= 3){
+      // Released without dragging — treat as the first click of a Rhino-style
+      // click/move/click (or click, type a length) line instead of discarding it.
+      draft.pendingClick = true;
       return;
     }
     if (draft && draft.type !== "triangle" && draft.type !== "polyline" && draft.type !== "measure" && draft.type !== "callout"){
