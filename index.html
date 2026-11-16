@@ -731,6 +731,7 @@
     <button type="button" class="unit-btn" id="gridSnapBtn" title="Snap drawing, placing and dragging to a 0.1m grid" aria-pressed="false">Grid</button>
     <button type="button" class="unit-btn" id="totalsBtn" title="Show total cable length per color and part counts, drawn on the sheet" aria-pressed="false">Totals</button>
     <button type="button" class="unit-btn" id="workTableBtn" title="Work table — a staging shelf for master parts you can duplicate onto the drawing; staged parts are never counted in Totals or the Production sheet" aria-pressed="false">Work table</button>
+    <button type="button" class="unit-btn" id="dimsToggleBtn" title="Show or hide every dimension/measurement label on the sheet at once, instead of hiding them one by one" aria-pressed="true">Dimensions</button>
   </div>
   <div class="unit-toggle" id="unitToggle" title="Units used for all displayed measurements">
     <button type="button" class="unit-btn" data-unit="m" aria-pressed="true">m</button>
@@ -5768,11 +5769,19 @@
     };
     reader.readAsDataURL(file);
   });
-  document.getElementById("previewBtn").addEventListener("click", function(){
-    var on = !svg.classList.contains("preview-mode");
-    svg.classList.toggle("preview-mode", on);
-    this.setAttribute("aria-pressed", String(on));
-    this.textContent = on ? "Show measurements" : "Preview";
+  var previewBtn = document.getElementById("previewBtn");
+  var dimsToggleBtn = document.getElementById("dimsToggleBtn");
+  function setDimensionsHidden(hidden){
+    svg.classList.toggle("preview-mode", hidden);
+    previewBtn.setAttribute("aria-pressed", String(hidden));
+    previewBtn.textContent = hidden ? "Show measurements" : "Preview";
+    dimsToggleBtn.setAttribute("aria-pressed", String(!hidden));
+  }
+  previewBtn.addEventListener("click", function(){
+    setDimensionsHidden(!svg.classList.contains("preview-mode"));
+  });
+  dimsToggleBtn.addEventListener("click", function(){
+    setDimensionsHidden(!svg.classList.contains("preview-mode"));
   });
   function setFocusMode(on){
     document.body.classList.toggle("focus-mode", on);
