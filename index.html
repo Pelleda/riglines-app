@@ -5085,8 +5085,9 @@
   function renderTotalsBox(){
     if (!showTotals){ totalsBox.hidden = true; return; }
     var sums = {};
-    var areaSums = {};
+    var areaSums = {}, perimSums = {};
     var partCounts = {}, partOrder = [];
+    var grandLenPx = 0, grandParts = 0;
     state.shapes.forEach(function(s){
       var layer = layerFor(s.color);
       if ((layer && layer.visible === false) || isHiddenShape(s)) return;
@@ -5095,22 +5096,28 @@
         if (s.type === "line"){ len = Math.hypot(s.x2-s.x1, s.y2-s.y1); }
         else { for (var pi=0; pi<s.points.length-1; pi++) len += Math.hypot(s.points[pi+1][0]-s.points[pi][0], s.points[pi+1][1]-s.points[pi][1]); }
         sums[s.color] = (sums[s.color] || 0) + len;
+        grandLenPx += len;
       } else if (s.type === "rect" && s.rectKind === "rope"){
         var rlen = 2 * (Math.abs(s.w) + Math.abs(s.h));
         sums[s.color] = (sums[s.color] || 0) + rlen;
+        grandLenPx += rlen;
       } else if (s.type === "rect" && s.rectKind === "frame"){
         var flabel = "Metal frame";
         if (partCounts[flabel] == null) partOrder.push(flabel);
         partCounts[flabel] = (partCounts[flabel] || 0) + 1;
+        grandParts++;
       } else if (s.type === "net"){
         var area = pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
+        var perim = 2 * (pxToM(Math.abs(s.w)) + pxToM(Math.abs(s.h)));
         areaSums[s.color] = (areaSums[s.color] || 0) + area;
+        perimSums[s.color] = (perimSums[s.color] || 0) + perim;
       } else if (s.type === "part"){
         var plabel = (typeof s.partType === "string" && s.partType.indexOf("custom:") === 0)
           ? ((findCustomPart(s.partType.slice(7)) || {}).name || "Custom part")
           : partLabel(s.partType);
         if (partCounts[plabel] == null) partOrder.push(plabel);
         partCounts[plabel] = (partCounts[plabel] || 0) + 1;
+        grandParts++;
       }
     });
     var colors = Object.keys(sums);
@@ -5149,7 +5156,7 @@
         var alayer = layerFor(c);
         var row = document.createElement("div"); row.className = "totals-row";
         var dot = document.createElement("span"); dot.className = "totals-dot"; dot.style.background = c;
-        var txt = document.createElement("span"); txt.textContent = (alayer ? alayer.name : "Custom") + " — " + areaSums[c].toFixed(2) + " m²";
+        var txt = document.createElement("span"); txt.textContent = (alayer ? alayer.name : "Custom") + " — " + areaSums[c].toFixed(2) + " m² (" + (perimSums[c]||0).toFixed(2) + " m perimeter)";
         row.appendChild(dot); row.appendChild(txt);
         totalsBox.appendChild(row);
       });
@@ -5166,6 +5173,22 @@
         row.appendChild(txt);
         totalsBox.appendChild(row);
       });
+    }
+    if (colors.length > 1 || partOrder.length > 1){
+      var gtitle = document.createElement("div"); gtitle.className = "totals-title";
+      gtitle.style.marginTop = "8px"; gtitle.style.borderTop = "1px solid var(--border)"; gtitle.style.paddingTop = "6px";
+      gtitle.textContent = "Grand total";
+      totalsBox.appendChild(gtitle);
+      if (grandLenPx){
+        var grow = document.createElement("div"); grow.className = "totals-row";
+        grow.textContent = "Cable, total — " + fmtLen(pxToM(grandLenPx));
+        totalsBox.appendChild(grow);
+      }
+      if (grandParts){
+        var prow = document.createElement("div"); prow.className = "totals-row";
+        prow.textContent = "Fittings, total — " + grandParts;
+        totalsBox.appendChild(prow);
+      }
     }
     positionTotalsBox();
   }
