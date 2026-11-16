@@ -835,7 +835,7 @@
   var LINE_DASH_OPTIONS = [["solid","Solid"],["dashed","Dashed"],["dotted","Dotted"]];
   var LABEL_OFFSET_DEFAULTS = {line:0.07, measure:0.07, polyline:0.10, rect:0.06, circle:0.06, ring:0.06, net:0.06};
   var pendingMeasureStyle = "simple";
-  var MEASURE_STYLE_LABELS = {simple:"Simple", precision:"Precision"};
+  var MEASURE_STYLE_LABELS = {simple:"Simple", precision:"Architectural"};
   var pendingMeasureOffset = 0.3;
   var clipboard = [];
   var snapEnabled = false;
@@ -2315,7 +2315,7 @@
       measureBtn.innerHTML = t.icon + '<span class="tool-lbl">' + MEASURE_STYLE_LABELS[pendingMeasureStyle] + '</span><span class="key">' + t.key + "</span>";
       measurePopover = document.createElement("div");
       measurePopover.className = "tool-popover"; measurePopover.hidden = true;
-      [["simple","Simple"],["precision","Precision"]].forEach(function(pair){
+      [["simple","Simple"],["precision","Architectural"]].forEach(function(pair){
         var mkb = document.createElement("button");
         mkb.type = "button"; mkb.className = "tool-btn"; mkb.dataset.measureStyle = pair[0];
         mkb.setAttribute("aria-pressed", String(pendingMeasureStyle === pair[0]));
@@ -3818,6 +3818,32 @@
       stroke:"var(--paper-ink-faint)", "stroke-width":1, "stroke-dasharray":"1.5 2.5",
       "stroke-linecap":"round", class:"dim-leader"}, parent);
   }
+  // Architectural dimension decoration for a plain "line" shape with labelStyle
+  // "architectural": witness lines out to a dimension line at the same offset/side
+  // the label itself already sits at (labelGapPx/labelAnchor), with 45° ticks —
+  // matches the look of the dedicated Measure tool's "Architectural" style.
+  function drawLineArchDim(parent, s){
+    var x1=s.x1, y1=s.y1, x2=s.x2, y2=s.y2;
+    var ang = Math.atan2(y2-y1, x2-x1) * 180/Math.PI;
+    if (ang > 90 || ang < -90) ang += 180;
+    var theta = ang * Math.PI/180;
+    var nx = Math.sin(theta), ny = -Math.cos(theta);
+    var gap = labelGapPx(s);
+    var over = (gap < 0 ? -5 : 5);
+    var p1x = x1+nx*gap, p1y = y1+ny*gap, p2x = x2+nx*gap, p2y = y2+ny*gap;
+    var color = s.color;
+    var lineAttrs2 = {stroke:color, "stroke-width":1, "stroke-linecap":"round", class:"measure-line"};
+    var gapPx2 = (gap < 0 ? -1 : 1) * 3;
+    el("line", Object.assign({x1:x1+nx*gapPx2,y1:y1+ny*gapPx2,x2:p1x+nx*over,y2:p1y+ny*over}, lineAttrs2), parent);
+    el("line", Object.assign({x1:x2+nx*gapPx2,y1:y2+ny*gapPx2,x2:p2x+nx*over,y2:p2y+ny*over}, lineAttrs2), parent);
+    el("line", Object.assign({x1:p1x,y1:p1y,x2:p2x,y2:p2y}, lineAttrs2), parent);
+    var dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
+    var tHalf=5;
+    var tx=(ux-uy)*Math.SQRT1_2, ty=(ux+uy)*Math.SQRT1_2;
+    var tickAttrs = {stroke:color, "stroke-width":1.4, "stroke-linecap":"round", class:"measure-line"};
+    el("line", Object.assign({x1:p1x-tx*tHalf,y1:p1y-ty*tHalf,x2:p1x+tx*tHalf,y2:p1y+ty*tHalf}, tickAttrs), parent);
+    el("line", Object.assign({x1:p2x-tx*tHalf,y1:p2y-ty*tHalf,x2:p2x+tx*tHalf,y2:p2y+ty*tHalf}, tickAttrs), parent);
+  }
   function addLenLabel(parent, x1,y1,x2,y2, s){
     var computed = fmtLen(pxToM(Math.hypot(x2-x1, y2-y1)));
     var text = s ? labelTextOverride(s, computed) : computed;
@@ -4014,6 +4040,7 @@
         if (lineDash) lineAttrs["stroke-dasharray"] = lineDash;
         el("line", lineAttrs, g);
         el("line", {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:"transparent", "stroke-width":14, "pointer-events":"stroke"}, g);
+        if (s.labelStyle === "architectural" && (s.labelMode || "auto") !== "hidden") drawLineArchDim(g, s);
         addLenLabel(g, s.x1,s.y1,s.x2,s.y2, s);
       } else if (s.type === "rect"){
         var rx=Math.min(s.x,s.x+s.w), ry=Math.min(s.y,s.y+s.h), rw=Math.abs(s.w), rh=Math.abs(s.h);
@@ -4702,6 +4729,23 @@
       });
       appendLineStyleControls(s);
       appendLabelControls(s);
+      var dimStyleLab = document.createElement("label"); dimStyleLab.textContent = "Dimension style";
+      dimStyleLab.style.display = "block"; dimStyleLab.style.marginTop = "8px";
+      propsEl.appendChild(dimStyleLab);
+      var dimStyleRow = document.createElement("div"); dimStyleRow.className = "row"; dimStyleRow.style.gap = "4px";
+      [["simple","Simple"],["architectural","Architectural"]].forEach(function(pair){
+        var db = document.createElement("button"); db.type = "button"; db.className = "btn"; db.style.flex = "1";
+        db.textContent = pair[1];
+        db.setAttribute("aria-pressed", String((s.labelStyle || "simple") === pair[0]));
+        db.addEventListener("click", function(){
+          pushUndo();
+          s.labelStyle = pair[0];
+          render();
+          renderProps();
+        });
+        dimStyleRow.appendChild(db);
+      });
+      propsEl.appendChild(dimStyleRow);
     } else if (s.type === "measure"){
       numRow("Distance (m)", shapeLen(s).toFixed(3), function(v){
         var ang = Math.atan2(s.y2-s.y1, s.x2-s.x1);
@@ -4737,7 +4781,7 @@
       mStyleLab.style.display = "block"; mStyleLab.style.marginTop = "8px";
       propsEl.appendChild(mStyleLab);
       var mStyleRow = document.createElement("div"); mStyleRow.className = "row"; mStyleRow.style.gap = "4px";
-      [["simple","Simple"],["precision","Precision"]].forEach(function(pair){
+      [["simple","Simple"],["precision","Architectural"]].forEach(function(pair){
         var mb = document.createElement("button"); mb.type = "button"; mb.className = "btn"; mb.style.flex = "1";
         mb.textContent = pair[1];
         mb.setAttribute("aria-pressed", String((s.style || "simple") === pair[0]));
