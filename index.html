@@ -851,6 +851,8 @@
   var redoStack = [];
   var draft = null;      // in-progress freehand shape
   var dragging = null;   // move/reshape state
+  var offsetSourceId = null; // shape being offset by the Offset tool
+  var offsetPending = null;  // {source, patch, dist} — live preview while hovering
   var lastClickInfo = {id:null, time:0};   // manual double-click tracking (native dblclick is unreliable after setPointerCapture)
   var panState = null;   // middle-mouse-button drag-to-pan (also spacebar+drag)
   var spaceHeld = false;
@@ -2236,7 +2238,8 @@
     {id:"net", key:"N", short:"Net", label:"Net / webnet panel", icon:'<svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 3 L17 17 M17 3 L3 17 M10 3 L10 17 M3 10 L17 10" stroke="currentColor" stroke-width="1"/></svg>'},
     {id:"measure", key:"M", short:"Measure", label:"Measure (click, move, click to mark a distance)", icon:'<svg viewBox="0 0 20 20"><line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><line x1="9" y1="12" x2="12" y2="9" stroke="currentColor" stroke-width="1.6"/></svg>'},
     {id:"text", key:"X", short:"Text", label:"Text / marking", icon:'<svg viewBox="0 0 20 20"><text x="10" y="15" font-size="14" font-family="IBM Plex Mono, monospace" text-anchor="middle" fill="currentColor">A</text></svg>'},
-    {id:"callout", key:"K", short:"Marker", label:"Reference marker (box a detail, click to place the label, type a code like T1)", icon:'<svg viewBox="0 0 20 20"><rect x="2" y="2" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 1.4"/><line x1="11" y1="9" x2="16" y2="14" stroke="currentColor" stroke-width="1.4"/><text x="17" y="18" font-size="7" font-family="IBM Plex Mono, monospace" fill="currentColor">T1</text></svg>'}
+    {id:"callout", key:"K", short:"Marker", label:"Reference marker (box a detail, click to place the label, type a code like T1)", icon:'<svg viewBox="0 0 20 20"><rect x="2" y="2" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 1.4"/><line x1="11" y1="9" x2="16" y2="14" stroke="currentColor" stroke-width="1.4"/><text x="17" y="18" font-size="7" font-family="IBM Plex Mono, monospace" fill="currentColor">T1</text></svg>'},
+    {id:"offset", key:"F", short:"Offset", label:"Offset (select a cable, cable run, rectangle or circle first, then move the mouse and click)", icon:'<svg viewBox="0 0 20 20"><path d="M3 14 L10 4 L17 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M5.5 16.5 L10 8.5 L14.5 16.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>'}
   ];
   var HINTS = {
     select: "Click a shape to select it and drag to move, or drag its small circular handles to resize (a fitting's handle resizes it, not just rectangles/circles). Drag on empty sheet to box-select several at once (Shift-drag adds to the selection); drag any selected shape to move the group. Hold Option/Alt and drag a shape to drop a duplicate right where you release it. Ctrl/Cmd+C to copy, Ctrl/Cmd+X to cut, Ctrl/Cmd+V to paste; Ctrl/Cmd+D or the Duplicate button to clone in place with a small offset. Dragging a shape snaps to other shapes' edges/centers with a guide line, like Figma. Hold Space and drag (or drag with the middle mouse button) to pan the canvas from any tool. Ctrl/Cmd+G to group a selection (click any grouped shape to select/move the whole group; click it again quickly to isolate just that one shape for editing/duplicating/deleting on its own), Ctrl/Cmd+Shift+G to ungroup. Select shapes and use \"Make fitting from selection\" in Properties to save them as a new reusable part. A selected fitting (or group) always shows its rotate handle above it — drag it to turn (snaps to 15° steps). Delete key removes selection.",
@@ -2249,7 +2252,8 @@
     net: "Click and drag to draw a webnet / mesh panel. Mesh cell size can be fine-tuned in Properties.",
     measure: "Click once to set the start point, move the mouse (no need to hold the button) to see the live distance, then click again to mark the end point — starting or ending on a cable snaps and follows along it. Escape cancels. Doesn't count as a real cable. Use the Measure button's menu to switch between Simple (a plain label) and Precision (an offset architect-style dimension line with witness lines and tick marks).",
     text: "Click on the sheet to add a text marking.",
-    callout: "Switch here with shapes selected to auto-wrap them in a box, or drag out a box yourself around a joint/detail. Then click to place the label and type a reference like T1. Drag a box corner to resize, or the label dot to re-aim the leader."
+    callout: "Switch here with shapes selected to auto-wrap them in a box, or drag out a box yourself around a joint/detail. Then click to place the label and type a reference like T1. Drag a box corner to resize, or the label dot to re-aim the leader.",
+    offset: "Move the mouse closer to or farther from the selected shape to preview a parallel copy at that distance — click to place it. Press Enter to type an exact distance in meters instead. Escape cancels."
   };
 
   var toolsEl = document.getElementById("tools");
@@ -2279,8 +2283,20 @@
     b.className = "tool-btn"; b.type = "button"; b.title = t.label + " (" + t.key + ")";
     b.setAttribute("aria-pressed", "false"); b.dataset.tool = t.id;
     b.innerHTML = t.icon + '<span class="tool-lbl">' + t.short + '</span><span class="key">' + t.key + "</span>";
-    b.addEventListener("click", function(){ setTool(t.id); closeAllPopovers(); });
+    b.addEventListener("click", function(){
+      if (t.id === "offset" && !armOffsetTool()) { closeAllPopovers(); return; }
+      setTool(t.id); closeAllPopovers();
+    });
     return b;
+  }
+  function armOffsetTool(){
+    var osel = state.selectedId && findShape(state.selectedId);
+    if (!osel || ["line","polyline","rect","circle"].indexOf(osel.type) === -1){
+      notify("Select a cable, cable run, rectangle or circle first, then choose Offset.");
+      return false;
+    }
+    offsetSourceId = osel.id;
+    return true;
   }
   TOOLS.forEach(function(t){
     if (t.group === "shapes"){
@@ -2765,6 +2781,7 @@
     if (architectMode && id !== "select") return;
     state.tool = id;
     draft = null;
+    if (id !== "offset"){ offsetSourceId = null; offsetPending = null; }
     if (id === "callout" && (state.selectedIds.length || state.selectedId)){
       var seedIds = state.selectedIds.length ? state.selectedIds : [state.selectedId];
       var seedShapes = seedIds.map(findShape).filter(Boolean);
@@ -4124,6 +4141,148 @@
     });
     return best;
   }
+  // ---------- Offset tool geometry ----------
+  // Signed distance from a point to the shape, in the shape's own offset
+  // convention (positive = cursor on the "outward"/left side, negative = the
+  // other side). Returns null for shape types Offset doesn't support.
+  function offsetSignedDistance(s, p){
+    if (s.type === "line"){
+      var dx=s.x2-s.x1, dy=s.y2-s.y1, len=Math.hypot(dx,dy);
+      if (!len) return null;
+      var nx=-dy/len, ny=dx/len;
+      return (p.x-s.x1)*nx + (p.y-s.y1)*ny;
+    }
+    if (s.type === "rect"){
+      var dxO = Math.max(s.x-p.x, p.x-(s.x+s.w), 0);
+      var dyO = Math.max(s.y-p.y, p.y-(s.y+s.h), 0);
+      if (dxO > 0 || dyO > 0) return Math.hypot(dxO, dyO);
+      return -Math.min(p.x-s.x, (s.x+s.w)-p.x, p.y-s.y, (s.y+s.h)-p.y);
+    }
+    if (s.type === "circle"){
+      return Math.hypot(p.x-s.cx, p.y-s.cy) - s.r;
+    }
+    if (s.type === "polyline"){
+      var bestDist = Infinity, bestIdx = -1;
+      for (var i=0;i<s.points.length-1;i++){
+        var a=s.points[i], b=s.points[i+1];
+        var r = distToSegment(p.x, p.y, a[0], a[1], b[0], b[1]);
+        if (r.dist < bestDist){ bestDist = r.dist; bestIdx = i; }
+      }
+      if (bestIdx === -1) return null;
+      var refA=s.points[bestIdx], refB=s.points[bestIdx+1];
+      var refDx=refB[0]-refA[0], refDy=refB[1]-refA[1];
+      var refCross = refDx*(p.y-refA[1]) - refDy*(p.x-refA[0]);
+      return (refCross >= 0 ? 1 : -1) * bestDist;
+    }
+    return null;
+  }
+  function lineIntersect(a1, a2, b1, b2){
+    var d1x=a2[0]-a1[0], d1y=a2[1]-a1[1];
+    var d2x=b2[0]-b1[0], d2y=b2[1]-b1[1];
+    var denom = d1x*d2y - d1y*d2x;
+    if (Math.abs(denom) < 1e-6) return null;
+    var t = ((b1[0]-a1[0])*d2y - (b1[1]-a1[1])*d2x) / denom;
+    return [a1[0]+d1x*t, a1[1]+d1y*t];
+  }
+  function offsetPolylinePoints(points, d){
+    if (!points || points.length < 2) return null;
+    var segOffsets = [];
+    for (var i=0;i<points.length-1;i++){
+      var a=points[i], b=points[i+1];
+      var dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy);
+      if (!len){ segOffsets.push(null); continue; }
+      var nx=-dy/len, ny=dx/len;
+      segOffsets.push({a:[a[0]+nx*d, a[1]+ny*d], b:[b[0]+nx*d, b[1]+ny*d]});
+    }
+    var validSegs = segOffsets.filter(Boolean);
+    if (!validSegs.length) return null;
+    var newPts = [validSegs[0].a.slice()];
+    for (var i=0;i<validSegs.length;i++){
+      if (i > 0){
+        var prev = validSegs[i-1], cur = validSegs[i];
+        var ix = lineIntersect(prev.a, prev.b, cur.a, cur.b);
+        if (ix) newPts[newPts.length-1] = ix; else newPts.push(cur.a.slice());
+      }
+      newPts.push(validSegs[i].b.slice());
+    }
+    return {points: newPts};
+  }
+  // Applies a signed px distance `d` to shape `s`, returning a field patch
+  // to merge into a clone of `s` — or null if the result would be degenerate.
+  function offsetApply(s, d){
+    if (Math.abs(d) < 0.001) return null;
+    if (s.type === "line"){
+      var dx=s.x2-s.x1, dy=s.y2-s.y1, len=Math.hypot(dx,dy);
+      if (!len) return null;
+      var nx=-dy/len, ny=dx/len;
+      return {x1:s.x1+nx*d, y1:s.y1+ny*d, x2:s.x2+nx*d, y2:s.y2+ny*d};
+    }
+    if (s.type === "rect"){
+      var nw = s.w + 2*d, nh = s.h + 2*d;
+      if (nw < 2 || nh < 2) return null;
+      return {x:s.x-d, y:s.y-d, w:nw, h:nh};
+    }
+    if (s.type === "circle"){
+      var nr = s.r + d;
+      if (nr < 2) return null;
+      return {r:nr};
+    }
+    if (s.type === "polyline"){
+      return offsetPolylinePoints(s.points, d);
+    }
+    return null;
+  }
+  // Move-driven preview: derives both the signed distance and the resulting
+  // patch from the cursor position `p`.
+  function computeOffsetGeometry(s, p){
+    var d = offsetSignedDistance(s, p);
+    if (d == null || Math.abs(d) < 2) return null;
+    var patch = offsetApply(s, d);
+    if (!patch) return null;
+    return {dist: d, patch: patch};
+  }
+  function drawOffsetPreview(parent, s, patch){
+    var stroke = s.color || "#2b6cb5", sw = strokeWidthFor(s);
+    if (s.type === "line"){
+      el("line", {x1:patch.x1, y1:patch.y1, x2:patch.x2, y2:patch.y2, stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.85}, parent);
+    } else if (s.type === "rect"){
+      el("rect", {x:patch.x, y:patch.y, width:patch.w, height:patch.h, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.85}, parent);
+    } else if (s.type === "circle"){
+      el("circle", {cx:s.cx, cy:s.cy, r:patch.r, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.85}, parent);
+    } else if (s.type === "polyline" && patch.points){
+      var ptsStr = patch.points.map(function(pt){ return pt[0]+","+pt[1]; }).join(" ");
+      el("polyline", {points:ptsStr, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.85}, parent);
+    }
+  }
+  function commitOffsetShape(source, patch){
+    pushUndo();
+    var copy = JSON.parse(JSON.stringify(source));
+    copy.id = uid();
+    delete copy.groupId; delete copy.locked; delete copy.hidden; delete copy.name;
+    for (var k in patch) copy[k] = patch[k];
+    state.shapes.push(copy);
+    state.selectedIds = [copy.id];
+    state.selectedId = copy.id;
+    offsetPending = null; offsetSourceId = null;
+    renderOverlayClear();
+    setTool("select");
+    render(); renderProps();
+    notify("Offset copy created.");
+  }
+  function offsetTypedEntry(){
+    var oSrc = findShape(offsetSourceId);
+    if (!oSrc) return;
+    var curSign = (offsetPending && offsetPending.dist < 0) ? -1 : 1;
+    var defVal = offsetPending ? (Math.round(pxToM(Math.abs(offsetPending.dist)) * 100) / 100) : 0.1;
+    promptModal("Offset distance (m) — negative flips to the other side", function(val){
+      var distM = parseFloat(val);
+      if (isNaN(distM) || !distM) return;
+      var distPx = mToPx(Math.abs(distM)) * (distM < 0 ? -curSign : curSign);
+      var patch = offsetApply(oSrc, distPx);
+      if (!patch){ notify("That distance doesn't work for this shape."); return; }
+      commitOffsetShape(oSrc, patch);
+    }, String(defVal));
+  }
   function drawMesh(parent, id, x, y, w, h, color, cellPx){
     cellPx = Math.max(cellPx, 4);
     var patId = "netpat-" + id;
@@ -5463,6 +5622,13 @@
       return;
     }
 
+    if (state.tool === "offset"){
+      if (offsetPending){
+        commitOffsetShape(offsetPending.source, offsetPending.patch);
+      }
+      return;
+    }
+
     if (state.tool === "callout" && draft && draft.type === "callout" && draft.phase === "leader"){
       var coX = p.x, coY = p.y;
       var boxSnap = {x:draft.x, y:draft.y, w:draft.w, h:draft.h};
@@ -5503,6 +5669,22 @@
     coordY.textContent = pxToM(svg.height.baseVal.value - p.y).toFixed(2);
 
     if (architectMode){ updateHoverTip(evt); return; }
+
+    if (state.tool === "offset"){
+      var osrc = offsetSourceId && findShape(offsetSourceId);
+      renderOverlayClear();
+      if (!osrc){ offsetPending = null; return; }
+      var offRes = computeOffsetGeometry(osrc, p);
+      if (offRes){
+        offsetPending = {source: osrc, patch: offRes.patch, dist: offRes.dist};
+        drawOffsetPreview(overlayLayer, osrc, offRes.patch);
+        hintEl.textContent = "Offset " + (Math.round(pxToM(Math.abs(offRes.dist)) * 100) / 100) + " m — click to place. Enter to type an exact distance.";
+      } else {
+        offsetPending = null;
+        hintEl.textContent = HINTS.offset;
+      }
+      return;
+    }
     if (dragging && dragging.mode === "rubberband"){
       dragging.x2 = p.x; dragging.y2 = p.y;
       renderOverlayClear();
@@ -5893,7 +6075,7 @@
   });
 
   // ---------- keyboard ----------
-  var KEYMAP = {v:"select", l:"line", p:"polyline", r:"rect", c:"circle", o:"ring", t:"triangle", n:"net", m:"measure", x:"text", k:"callout"};
+  var KEYMAP = {v:"select", l:"line", p:"polyline", r:"rect", c:"circle", o:"ring", t:"triangle", n:"net", m:"measure", x:"text", k:"callout", f:"offset"};
   window.addEventListener("keydown", function(e){
     if (!document.getElementById("ndOverlay").hidden){
       if (e.key === "Escape") closeNewDrawing();
@@ -5924,6 +6106,7 @@
     if (e.key === "Enter" && draft && (draft.type === "line" || draft.type === "rect" || draft.type === "circle" || draft.type === "ring" || draft.type === "net" || draft.type === "measure")){
       e.preventDefault(); draftTypedEntry(); return;
     }
+    if (e.key === "Enter" && state.tool === "offset" && offsetSourceId){ e.preventDefault(); offsetTypedEntry(); return; }
     if (e.key === "Escape"){ draft = null; pendingPart = null; clearSelection(); renderOverlayClear(); render(); setTool("select"); return; }
     if ((e.key === "Delete" || e.key === "Backspace") && (state.selectedId || state.selectedIds.length)){
       e.preventDefault();
@@ -5939,6 +6122,7 @@
       return;
     }
     var mapped = KEYMAP[e.key.toLowerCase()];
+    if (mapped === "offset"){ if (armOffsetTool()) setTool(mapped); return; }
     if (mapped){ setTool(mapped); }
   });
   window.addEventListener("keyup", function(e){
