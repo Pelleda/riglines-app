@@ -245,6 +245,7 @@
     background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
     box-shadow:var(--shadow); padding:6px; display:flex; flex-direction:row; gap:2px;
   }
+  .tool-popover-sep{ width:1px; align-self:stretch; background:var(--border); margin:2px 2px; }
   .tool-popover.colors-popover{
     flex-direction:column; width:220px; max-height:min(60vh,420px); overflow-y:auto; padding:10px;
   }
@@ -2355,6 +2356,17 @@
         });
         measurePopover.appendChild(mkb);
       });
+      var calibDiv = document.createElement("div"); calibDiv.className = "tool-popover-sep";
+      measurePopover.appendChild(calibDiv);
+      var calibBtn = document.createElement("button");
+      calibBtn.type = "button"; calibBtn.className = "tool-btn";
+      calibBtn.title = "Click two points a known real distance apart, then type that distance — rescales the whole sheet to match (for a traced/imported drawing with an unknown or wrong scale)";
+      calibBtn.innerHTML = '<svg viewBox="0 0 20 20"><line x1="3" y1="15" x2="17" y2="5" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="15" r="2" fill="currentColor"/><circle cx="17" cy="5" r="2" fill="currentColor"/></svg><span class="tool-lbl">Calibrate</span>';
+      calibBtn.addEventListener("click", function(){
+        setTool("calibrate");
+        closeAllPopovers();
+      });
+      measurePopover.appendChild(calibBtn);
       registerPopover(measureBtn, measurePopover);
       measureGroupEl.appendChild(measureBtn);
       measureGroupEl.appendChild(measurePopover);
@@ -5348,6 +5360,54 @@
       return;
     }
 
+    if (state.tool === "calibrate"){
+      if ((!draft || draft.type !== "calibrate") && !shapeTarget){
+        var wrapRectCal = canvasWrap.getBoundingClientRect();
+        panState = {
+          startX: evt.clientX, startY: evt.clientY,
+          scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
+          scaleX: (wrapRectCal.width / (canvasWrap.clientWidth || wrapRectCal.width)) || 1,
+          scaleY: (wrapRectCal.height / (canvasWrap.clientHeight || wrapRectCal.height)) || 1
+        };
+        svg.setPointerCapture(evt.pointerId);
+        canvasWrap.style.cursor = "grabbing";
+        return;
+      }
+      if (!draft || draft.type !== "calibrate"){
+        var calStick = findStickSegment(p, 14);
+        var calStart = calStick ? {x:calStick.x, y:calStick.y} : p;
+        draft = {type:"calibrate", x1:calStart.x, y1:calStart.y, x2:calStart.x, y2:calStart.y};
+        renderOverlayClear();
+        drawPinMark(overlayLayer, calStart.x, calStart.y, "var(--accent)");
+      } else {
+        var calPxDist = Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1);
+        var calDraftSnap = draft;
+        renderOverlayClear();
+        if (calPxDist > 3){
+          promptModal("Real distance between the two points (m)", function(val){
+            var realM = parseFloat(val);
+            if (!realM || realM <= 0) return;
+            pushUndo();
+            var newScale = calPxDist / realM;
+            var curPxW = mToPx(state.canvasW), curPxH = mToPx(state.canvasH);
+            state.scale = newScale;
+            state.canvasW = curPxW / newScale;
+            state.canvasH = curPxH / newScale;
+            applyCanvasSize();
+            document.getElementById("scaleInput").value = Math.round(state.scale * 100) / 100;
+            document.getElementById("canvasWInput").value = Math.round(state.canvasW * 100) / 100;
+            document.getElementById("canvasHInput").value = Math.round(state.canvasH * 100) / 100;
+            notify("Sheet recalibrated — 1 m is now " + (Math.round(state.scale * 100) / 100) + " px.");
+            render();
+          }, "");
+        }
+        draft = null;
+        setTool("select");
+        render();
+      }
+      return;
+    }
+
     if (state.tool === "callout" && draft && draft.type === "callout" && draft.phase === "leader"){
       var coX = p.x, coY = p.y;
       var boxSnap = {x:draft.x, y:draft.y, w:draft.w, h:draft.h};
@@ -5535,7 +5595,7 @@
       return;
     }
     renderOverlayClear();
-    if (draft.type === "line" || draft.type === "rect" || draft.type === "circle" || draft.type === "ring" || draft.type === "net" || draft.type === "measure" || (draft.type === "callout" && draft.phase === "box")){
+    if (draft.type === "line" || draft.type === "rect" || draft.type === "circle" || draft.type === "ring" || draft.type === "net" || draft.type === "measure" || draft.type === "calibrate" || (draft.type === "callout" && draft.phase === "box")){
       draft.x2 = p.x; draft.y2 = p.y;
     }
     if (evt.shiftKey && (draft.type === "line" || (draft.type === "measure" && !draft.stick))){
@@ -5559,6 +5619,13 @@
           stroke:"var(--measure)", "stroke-width":4, opacity:0.25, class:"ghost"}, overlayLayer);
       }
       drawMeasureShape(overlayLayer, {type:"measure",x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2,style:pendingMeasureStyle,offset:pendingMeasureOffset,color:state.color}, true);
+    } else if (draft.type === "calibrate"){
+      el("line", {x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2, stroke:"var(--accent)", "stroke-width":2, "stroke-dasharray":"6 4", class:"ghost"}, overlayLayer);
+      drawPinMark(overlayLayer, draft.x1, draft.y1, "var(--accent)");
+      drawPinMark(overlayLayer, draft.x2, draft.y2, "var(--accent)");
+      var calMid = {x:(draft.x1+draft.x2)/2, y:(draft.y1+draft.y2)/2};
+      var calT = el("text", {x:calMid.x, y:calMid.y-8, class:"dim-label", "text-anchor":"middle"}, overlayLayer);
+      calT.textContent = "click to finish, then type the real distance";
     } else if (draft.type === "rect"){
       var grx=Math.min(draft.x1,draft.x2), gry=Math.min(draft.y1,draft.y2), grw=Math.abs(draft.x2-draft.x1), grh=Math.abs(draft.y2-draft.y1);
       el("rect", {x:grx, y:gry, width:grw, height:grh,
@@ -5677,7 +5744,7 @@
       draft.pendingClick = true;
       return;
     }
-    if (draft && draft.type !== "triangle" && draft.type !== "polyline" && draft.type !== "measure" && draft.type !== "callout"){
+    if (draft && draft.type !== "triangle" && draft.type !== "polyline" && draft.type !== "measure" && draft.type !== "calibrate" && draft.type !== "callout"){
       finalizeDraftShape();
     }
   });
