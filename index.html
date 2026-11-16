@@ -306,13 +306,19 @@
     cursor:pointer; padding:0;
   }
   .swatch[aria-pressed="true"]{ border-color:var(--ink); }
-  .legend-row{ display:flex; align-items:center; gap:7px; margin-bottom:6px; }
+  .legend-row{ display:flex; align-items:center; gap:3px; margin-bottom:6px; }
   .legend-dot{ width:11px; height:11px; border-radius:2px; flex:0 0 auto; }
-  .legend-row input{
+  input.legend-dot{
+    flex:0 0 auto; -webkit-appearance:none; appearance:none; border:none; padding:0;
+    background:none; cursor:pointer;
+  }
+  input.legend-dot::-webkit-color-swatch-wrapper{ padding:0; }
+  input.legend-dot::-webkit-color-swatch{ border:1px solid var(--border); border-radius:2px; }
+  .legend-row input[type=text]{
     flex:1 1 auto; min-width:0; border:1px solid transparent; background:transparent;
     padding:2px 4px; border-radius:var(--radius); color:var(--ink); font-size:var(--fs-xs);
   }
-  .legend-row input:hover, .legend-row input:focus{ border-color:var(--border); background:var(--panel-2); }
+  .legend-row input[type=text]:hover, .legend-row input[type=text]:focus{ border-color:var(--border); background:var(--panel-2); }
   .legend-row.hidden-layer{ opacity:.45; }
   .layer-row.layer-hidden{ opacity:.45; }
   .side-left section{ display:flex; flex-direction:column; min-height:0; }
@@ -2390,6 +2396,7 @@
   colorsPopover.innerHTML =
     '<div class="swatch-row" id="swatchRow"></div>' +
     '<div id="legendList"></div>' +
+    '<button type="button" class="btn" id="addLayerBtn" style="width:100%;margin-top:6px;">+ Add layer</button>' +
     '<div class="custom-color">' +
       '<input type="color" id="customColor" value="#2b6cb5" title="Custom color for this shape only">' +
       '<span class="empty">custom, one-off</span>' +
@@ -3136,7 +3143,18 @@
     legendList.innerHTML = "";
     state.legend.forEach(function(item, idx){
       var row = document.createElement("div"); row.className = "legend-row" + (item.visible === false ? " hidden-layer" : "");
-      var dot = document.createElement("span"); dot.className = "legend-dot"; dot.style.background = item.color;
+      var dotInp = document.createElement("input"); dotInp.type = "color"; dotInp.className = "legend-dot"; dotInp.value = item.color;
+      dotInp.title = "Layer color — changes it for every shape already on this layer";
+      dotInp.addEventListener("input", function(){
+        var oldColor = item.color, newColor = dotInp.value;
+        if (oldColor === newColor) return;
+        pushUndo();
+        item.color = newColor;
+        state.shapes.forEach(function(s){ if (s.color === oldColor) s.color = newColor; });
+        if (state.color === oldColor) state.color = newColor;
+        ["colorA","colorB","colorCable"].forEach(function(k){ if (state.assembly[k] === oldColor) state.assembly[k] = newColor; });
+        render(); renderPalette(); renderAsmColorRow(); scheduleSave();
+      });
       var input = document.createElement("input"); input.type = "text"; input.value = item.name;
       input.id = "legendName" + idx;
       input.addEventListener("input", function(){ item.name = input.value; scheduleSave(); });
@@ -3165,10 +3183,47 @@
         var tmp2 = state.legend[idx+1]; state.legend[idx+1] = state.legend[idx]; state.legend[idx] = tmp2;
         renderPalette(); scheduleSave();
       });
-      row.appendChild(dot); row.appendChild(input); row.appendChild(upBtn); row.appendChild(downBtn); row.appendChild(eyeBtn); row.appendChild(lockBtn);
+      var delBtn = document.createElement("button"); delBtn.type = "button"; delBtn.className = "icon-btn";
+      delBtn.title = "Delete this layer"; delBtn.textContent = "🗑";
+      delBtn.disabled = state.legend.length <= 1;
+      delBtn.addEventListener("click", function(){
+        if (state.legend.length <= 1) return;
+        var usedBy = state.shapes.filter(function(s){ return s.color === item.color; }).length;
+        function doDelete(){
+          pushUndo();
+          var fallback = state.legend[idx === 0 ? 1 : 0].color;
+          state.shapes.forEach(function(s){ if (s.color === item.color) s.color = fallback; });
+          if (state.color === item.color) state.color = fallback;
+          state.legend.splice(idx, 1);
+          render(); renderPalette(); renderAsmColorRow(); scheduleSave();
+        }
+        if (usedBy){
+          confirmModal(usedBy + " shape" + (usedBy === 1 ? "" : "s") + " on this layer will move to the layer above (or below). Delete layer \"" + (item.name || "Untitled") + "\"?", "Delete layer", doDelete);
+        } else {
+          doDelete();
+        }
+      });
+      row.appendChild(dotInp); row.appendChild(input); row.appendChild(upBtn); row.appendChild(downBtn); row.appendChild(eyeBtn); row.appendChild(lockBtn); row.appendChild(delBtn);
       legendList.appendChild(row);
     });
   }
+  document.getElementById("addLayerBtn").addEventListener("click", function(){
+    var usedColors = {}; state.legend.forEach(function(it){ usedColors[it.color] = true; });
+    var palette = ["#2b6cb5","#3f7d4f","#c68a1e","#a6437e","#6e5aa6","#b5432b","#2a8c82","#4a4a46","#d14b4b","#3b8ec4","#8aa83f","#9b5de5","#e0862a","#1f8a6c","#5c4a8a","#c23b6e"];
+    var fresh = palette.filter(function(c){ return !usedColors[c]; })[0];
+    if (!fresh){
+      // every preset taken — nudge the hue of a random one so it's still distinct
+      var base = palette[Math.floor(Math.random() * palette.length)];
+      fresh = base;
+    }
+    pushUndo();
+    state.legend.push({color: fresh, name: "New layer", visible: true, locked: false});
+    renderPalette();
+    scheduleSave();
+    var lastIdx = state.legend.length - 1;
+    var nameInp = document.getElementById("legendName" + lastIdx);
+    if (nameInp){ nameInp.focus(); nameInp.select(); }
+  });
   document.getElementById("customColor").addEventListener("input", function(e){
     state.color = e.target.value;
     renderPalette();
