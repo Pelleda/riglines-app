@@ -81,6 +81,7 @@
   }
   .spacer{ flex:1 1 auto; }
   .hdr-cluster{ display:flex; align-items:center; gap:6px; }
+  .hdr-popover-sep{ height:1px; background:var(--border); margin:3px 0; flex:0 0 auto; }
   .hdr-sep{ width:1px; align-self:stretch; margin:2px 4px; background:var(--border); flex:0 0 auto; }
   .btn-group{ display:flex; }
   .btn-group .btn{ border-radius:0; }
@@ -304,6 +305,9 @@
   .handle-edge{ fill-opacity:0.25; }
   .handle[data-handle="t"], .handle[data-handle="b"]{ cursor:ns-resize; }
   .handle[data-handle="l"], .handle[data-handle="r"]{ cursor:ew-resize; }
+  .handle-x{ stroke:#e8302a; }
+  .handle-y{ stroke:#2a9e4a; }
+  .handle-rot{ stroke:#2b6cb5; fill:var(--panel); fill-opacity:0.7; cursor:grab; }
   .del-handle{ cursor:pointer; }
   .del-handle circle{ fill:var(--danger); stroke:var(--panel); stroke-width:1.5; }
   .del-handle:hover circle{ fill:var(--danger-hover); }
@@ -564,7 +568,58 @@
 
 <header>
   <h1><img src="riglines-icon.png" alt="" class="logo-icon"> Riglines</h1>
-  <button class="btn" type="button" id="newDrawingBtn" title="Start a new drawing: set the canvas size and a starting template">New</button>
+
+  <div class="hdr-menu" id="fileMenu">
+    <button class="btn" type="button" id="fileMenuBtn" aria-haspopup="true" aria-expanded="false" title="New, open, save, import and export">File ▾</button>
+    <div class="hdr-popover" id="filePopover" hidden>
+      <button type="button" class="btn tpl-btn" id="newDrawingBtn" title="Start a new drawing: set the canvas size and a starting template">New</button>
+      <button type="button" class="btn tpl-btn" id="openFileBtn" title="Open a project file (.riglines.json) saved earlier">Open project</button>
+      <button type="button" class="btn tpl-btn" id="saveFileBtn" title="Save this drawing as a project file (.riglines.json) you can send to someone else or reopen later">Save project</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn tpl-btn" id="importDxfBtn" title="Import a .dxf file (LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/TEXT) onto this sheet. Binary .dwg isn't supported — save as DXF first.">Import DXF…</button>
+      <button type="button" class="btn tpl-btn" id="exportBtn" title="Export the drawing as an image or SVG code">Export…</button>
+      <button type="button" class="btn menu-toggle" id="productionBtn" aria-pressed="false" title="Production sheet: every fitting kind and rope/panel color, each with one editable Jakob code">Production sheet</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn danger tpl-btn" id="clearBtn">Clear canvas</button>
+    </div>
+  </div>
+  <input type="file" id="dxfFileInput" accept=".dxf" hidden>
+  <input type="file" id="projectFileInput" accept=".json,.riglines,.riglines.json" hidden>
+
+  <div class="hdr-menu" id="editMenu">
+    <button class="btn" type="button" id="editMenuBtn" aria-haspopup="true" aria-expanded="false" title="Undo/redo, duplicate, flip, rotate, align">Edit ▾</button>
+    <div class="hdr-popover" id="editPopover" hidden>
+      <button type="button" class="btn tpl-btn" id="undoBtn" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+      <button type="button" class="btn tpl-btn" id="redoBtn" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn tpl-btn" id="duplicateBtn" title="Duplicate selection (Ctrl/Cmd+D)">Duplicate</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn tpl-btn" id="flipHBtn" title="Flip selection horizontally (Shift+H)">Flip H</button>
+      <button type="button" class="btn tpl-btn" id="flipVBtn" title="Flip selection vertically (Shift+V)">Flip V</button>
+      <button type="button" class="btn tpl-btn" id="rotateByBtn" title="Rotate the selection by a typed angle, around its center">Rotate…</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn tpl-btn" id="alignLeftBtn" title="Align left edges">Align left</button>
+      <button type="button" class="btn tpl-btn" id="alignCenterHBtn" title="Align centers horizontally">Align center (H)</button>
+      <button type="button" class="btn tpl-btn" id="alignRightBtn" title="Align right edges">Align right</button>
+      <button type="button" class="btn tpl-btn" id="alignTopBtn" title="Align top edges">Align top</button>
+      <button type="button" class="btn tpl-btn" id="alignMiddleVBtn" title="Align centers vertically">Align middle (V)</button>
+      <button type="button" class="btn tpl-btn" id="alignBottomBtn" title="Align bottom edges">Align bottom</button>
+      <button type="button" class="btn tpl-btn" id="distHBtn" title="Distribute evenly, left to right (3+ shapes)">Distribute H</button>
+      <button type="button" class="btn tpl-btn" id="distVBtn" title="Distribute evenly, top to bottom (3+ shapes)">Distribute V</button>
+    </div>
+  </div>
+
+  <div class="hdr-menu" id="viewMenu">
+    <button class="btn" type="button" id="viewMenuBtn" aria-haspopup="true" aria-expanded="false" title="Architect mode, preview, focus, canvas color">View ▾</button>
+    <div class="hdr-popover" id="viewPopover" hidden>
+      <button type="button" class="btn tpl-btn" id="architectBtn" title="Architect mode: browse only. Hover a part for its name, click a part to add/edit its Jakob code. Drawing, moving and deleting are disabled." aria-pressed="false">Architect</button>
+      <button type="button" class="btn tpl-btn" id="previewBtn" title="Hide measurement labels for a clean preview" aria-pressed="false">Preview</button>
+      <button type="button" class="btn tpl-btn" id="focusBtn" title="Full-screen: hide every panel and toolbar, showing just the drawing. Move your mouse to the top or bottom edge to bring a bar back, or press Escape." aria-pressed="false">Focus</button>
+      <div class="hdr-popover-sep"></div>
+      <button type="button" class="btn tpl-btn" id="paperBtn" title="Switch the drawing sheet between a white and a black background" aria-pressed="false">Canvas: White</button>
+    </div>
+  </div>
+
   <div class="hdr-sep"></div>
   <div class="hdr-group">
     <label for="scaleInput">1&nbsp;m&nbsp;=</label>
@@ -609,68 +664,7 @@
     </div>
   </div>
 
-  <div class="hdr-sep"></div>
-
-  <div class="hdr-cluster">
-    <div class="btn-group">
-      <button class="btn" id="undoBtn" title="Undo (Ctrl/Cmd+Z)">Undo</button>
-      <button class="btn" id="redoBtn" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
-    </div>
-    <button class="btn" id="duplicateBtn" title="Duplicate selection (Ctrl/Cmd+D)">Duplicate</button>
-    <div class="btn-group">
-      <button class="btn" id="flipHBtn" title="Flip selection horizontally (Shift+H)">Flip H</button>
-      <button class="btn" id="flipVBtn" title="Flip selection vertically (Shift+V)">Flip V</button>
-      <button class="btn" id="rotateByBtn" title="Rotate the selection by a typed angle, around its center">Rotate…</button>
-    </div>
-    <div class="hdr-menu" id="alignMenu">
-      <button class="btn" type="button" id="alignMenuBtn" aria-haspopup="true" aria-expanded="false" title="Align and distribute the selected shapes">Align ▾</button>
-      <div class="hdr-popover" id="alignPopover" hidden>
-        <button type="button" class="btn tpl-btn" id="alignLeftBtn" title="Align left edges">Align left</button>
-        <button type="button" class="btn tpl-btn" id="alignCenterHBtn" title="Align centers horizontally">Align center (H)</button>
-        <button type="button" class="btn tpl-btn" id="alignRightBtn" title="Align right edges">Align right</button>
-        <button type="button" class="btn tpl-btn" id="alignTopBtn" title="Align top edges">Align top</button>
-        <button type="button" class="btn tpl-btn" id="alignMiddleVBtn" title="Align centers vertically">Align middle (V)</button>
-        <button type="button" class="btn tpl-btn" id="alignBottomBtn" title="Align bottom edges">Align bottom</button>
-        <button type="button" class="btn tpl-btn" id="distHBtn" title="Distribute evenly, left to right (3+ shapes)">Distribute H</button>
-        <button type="button" class="btn tpl-btn" id="distVBtn" title="Distribute evenly, top to bottom (3+ shapes)">Distribute V</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="hdr-sep"></div>
-
-  <div class="hdr-cluster">
-    <button class="btn" id="architectBtn" title="Architect mode: browse only. Hover a part for its name, click a part to add/edit its Jakob code. Drawing, moving and deleting are disabled." aria-pressed="false">Architect</button>
-    <button class="btn" id="previewBtn" title="Hide measurement labels for a clean preview" aria-pressed="false">Preview</button>
-    <button class="btn" id="focusBtn" title="Full-screen: hide every panel and toolbar, showing just the drawing. Move your mouse to the top or bottom edge to bring a bar back, or press Escape." aria-pressed="false">Focus</button>
-    <button class="btn" id="paperBtn" title="Switch the drawing sheet between a white and a black background" aria-pressed="false">Canvas: White</button>
-  </div>
-
-  <div class="hdr-sep"></div>
-
-  <div class="hdr-menu" id="outputMenu">
-    <button class="btn" type="button" id="outputMenuBtn" aria-haspopup="true" aria-expanded="false" title="Production sheet and export">Output ▾</button>
-    <div class="hdr-popover" id="outputPopover" hidden>
-      <button type="button" class="btn menu-toggle" id="productionBtn" aria-pressed="false" title="Production sheet: every fitting kind and rope/panel color, each with one editable Jakob code">Production sheet</button>
-      <button type="button" class="btn tpl-btn" id="exportBtn" title="Export the drawing as an image or SVG code">Export…</button>
-      <button type="button" class="btn tpl-btn" id="importDxfBtn" title="Import a .dxf file (LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/TEXT) onto this sheet. Binary .dwg isn't supported — save as DXF first.">Import DXF…</button>
-    </div>
-  </div>
-  <input type="file" id="dxfFileInput" accept=".dxf" hidden>
-
   <div class="spacer"></div>
-
-  <div class="hdr-cluster">
-    <div class="btn-group">
-      <button class="btn" id="saveFileBtn" title="Save this drawing as a project file (.riglines.json) you can send to someone else or reopen later">Save project</button>
-      <button class="btn" id="openFileBtn" title="Open a project file (.riglines.json) saved earlier">Open project</button>
-    </div>
-    <input type="file" id="projectFileInput" accept=".json,.riglines,.riglines.json" hidden>
-  </div>
-
-  <div class="hdr-sep"></div>
-
-  <button class="btn danger" id="clearBtn">Clear canvas</button>
 </header>
 
 <div class="app">
@@ -1369,8 +1363,14 @@
       var val = cs.getPropertyValue(v).trim();
       if (val) varCss += v + ":" + val + ";";
     });
+    var hideDims = svg.classList.contains("preview-mode");
     var clone = svg.cloneNode(true);
     clone.removeAttribute("class");
+    if (hideDims){
+      [".dim-label", ".dim-leader", ".measure-line", ".label-bubble", ".measure-label"].forEach(function(sel){
+        Array.prototype.forEach.call(clone.querySelectorAll(sel), function(el2){ el2.remove(); });
+      });
+    }
     clone.setAttribute("xmlns", NS);
     clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
     var handlesLayerClone = clone.querySelector("#handlesLayer");
@@ -1583,10 +1583,24 @@
       if (dxfLf && dxfLf.noPrint) return;
       curLayer = layerForColor(s.color);
       curColor420 = hexToTrueColor(s.color);
-      if (s.type === "line" || s.type === "measure"){
+      if (s.type === "line"){
+        if (s.rot){
+          var dxfLineB = boundsOf(s);
+          var dxfP1 = rotatePointAround(s.x1, s.y1, dxfLineB.x+dxfLineB.w/2, dxfLineB.y+dxfLineB.h/2, s.rot*Math.PI/180);
+          var dxfP2 = rotatePointAround(s.x2, s.y2, dxfLineB.x+dxfLineB.w/2, dxfLineB.y+dxfLineB.h/2, s.rot*Math.PI/180);
+          entLine(dxfP1[0], dxfP1[1], dxfP2[0], dxfP2[1]);
+        } else {
+          entLine(s.x1,s.y1,s.x2,s.y2);
+        }
+      } else if (s.type === "measure"){
         entLine(s.x1,s.y1,s.x2,s.y2);
       } else if (s.type === "rect" || s.type === "net"){
-        entPolyline([[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]], true);
+        var dxfCorners = [[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]];
+        if (s.rot){
+          var dxfRectB = boundsOf(s), dxfRcx = dxfRectB.x+dxfRectB.w/2, dxfRcy = dxfRectB.y+dxfRectB.h/2;
+          dxfCorners = dxfCorners.map(function(pt){ return rotatePointAround(pt[0], pt[1], dxfRcx, dxfRcy, s.rot*Math.PI/180); });
+        }
+        entPolyline(dxfCorners, true);
       } else if (s.type === "circle"){
         if (s.ry && s.ry !== s.r) entEllipse(s.cx, s.cy, s.r, s.ry);
         else entCircle(s.cx, s.cy, s.r);
@@ -1599,10 +1613,13 @@
           entEllipse(s.cx, s.cy, s.rOuter, dxfRingRY);
           entEllipse(s.cx, s.cy, s.rInner, s.rInner*(dxfRingRY/s.rOuter));
         }
-      } else if (s.type === "triangle"){
-        entPolyline(s.points, true);
-      } else if (s.type === "polyline"){
-        entPolyline(s.points, false);
+      } else if (s.type === "triangle" || s.type === "polyline"){
+        var dxfPts = s.points;
+        if (s.rot){
+          var dxfPolyB = boundsOf(s), dxfPcx = dxfPolyB.x+dxfPolyB.w/2, dxfPcy = dxfPolyB.y+dxfPolyB.h/2;
+          dxfPts = s.points.map(function(pt){ return rotatePointAround(pt[0], pt[1], dxfPcx, dxfPcy, s.rot*Math.PI/180); });
+        }
+        entPolyline(dxfPts, s.type === "triangle");
       } else if (s.type === "text"){
         var dxfTs = s.styleName && findTextStyle(s.styleName);
         entText(s.x, s.y, 3.5 * (dxfTs ? dxfTs.fontSize : (s.fontSize || 13)) / 13, s.text || "");
@@ -3113,9 +3130,10 @@
   // ---------- Templates menu (header) ----------
   registerPopover(document.getElementById("templatesBtn"), document.getElementById("templatesPopover"));
 
-  // ---------- Output menu (header) ----------
-  registerPopover(document.getElementById("outputMenuBtn"), document.getElementById("outputPopover"));
-  registerPopover(document.getElementById("alignMenuBtn"), document.getElementById("alignPopover"));
+  // ---------- File / Edit / View menus (header) ----------
+  registerPopover(document.getElementById("fileMenuBtn"), document.getElementById("filePopover"));
+  registerPopover(document.getElementById("editMenuBtn"), document.getElementById("editPopover"));
+  registerPopover(document.getElementById("viewMenuBtn"), document.getElementById("viewPopover"));
 
   // ---------- Cable assembly menu (header) ----------
   var assemblyBtn = document.getElementById("assemblyBtn");
@@ -4334,6 +4352,16 @@
     var dx = px - pivotX, dy = py - pivotY;
     return [pivotX + dx*c - dy*sn, pivotY + dx*sn + dy*c];
   }
+  var GUMBALL_ROTATABLE_TYPES = {line:1, rect:1, circle:1, ring:1, net:1, polyline:1, triangle:1, text:1, image:1, layoutframe:1};
+  function inverseRotatePoint(px, py, cx, cy, rotDeg){
+    if (!rotDeg) return {x:px, y:py};
+    var r = rotatePointAround(px, py, cx, cy, -rotDeg * Math.PI/180);
+    return {x:r[0], y:r[1]};
+  }
+  function forwardRotatePoint(px, py, cx, cy, rotDeg){
+    if (!rotDeg) return [px, py];
+    return rotatePointAround(px, py, cx, cy, rotDeg * Math.PI/180);
+  }
   // Patch of fields that put shape `o` at the position/angle it'd have after
   // rotating by `angRad` around `pivot` — shared by the group-rotate handle
   // and the Polar Array action below.
@@ -5234,6 +5262,10 @@
       var layer = layerFor(s.color);
       if ((layer && layer.visible === false) || isHiddenShape(s)) return;
       var g = el("g", {"data-id": s.id, style:"cursor:pointer", opacity:(s.opacity == null ? 1 : s.opacity)}, shapesLayer);
+      if (s.rot && GUMBALL_ROTATABLE_TYPES[s.type]){
+        var rotBounds = boundsOf(s);
+        g.setAttribute("transform", "rotate(" + s.rot + " " + (rotBounds.x + rotBounds.w/2) + " " + (rotBounds.y + rotBounds.h/2) + ")");
+      }
       if (s.hatch) drawHatchFill(g, s);
       if (s.type === "line"){
         var lineAttrs = {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:s.color, "stroke-width":strokeWidthFor(s), class:"shape-line"};
@@ -5423,44 +5455,63 @@
       }
       if (state.selectedIds.indexOf(s.id) !== -1){
         var b = boundsOf(s);
-        el("rect", {x:b.x-6, y:b.y-6, width:b.w+12, height:b.h+12, class:"sel-outline"}, handlesLayer);
+        var gumRot = (GUMBALL_ROTATABLE_TYPES[s.type] && s.rot) ? s.rot : 0;
+        var gumCx = b.x + b.w/2, gumCy = b.y + b.h/2;
+        function gumPt(localX, localY){
+          if (!gumRot) return [localX, localY];
+          return forwardRotatePoint(localX, localY, gumCx, gumCy, gumRot);
+        }
+        var outlineAttrs = {x:b.x-6, y:b.y-6, width:b.w+12, height:b.h+12, class:"sel-outline"};
+        if (gumRot) outlineAttrs.transform = "rotate(" + gumRot + " " + gumCx + " " + gumCy + ")";
+        el("rect", outlineAttrs, handlesLayer);
         if (state.selectedIds.length === 1){
-          if (s.type === "line" || s.type === "measure"){
+          if (s.type === "line"){
+            [[s.x1,s.y1,"1"],[s.x2,s.y2,"2"]].forEach(function(h){
+              var hp = gumPt(h[0], h[1]);
+              el("circle", {cx:hp[0], cy:hp[1], r:5, class:"handle", "data-handle":h[2], "data-id":s.id}, handlesLayer);
+            });
+          } else if (s.type === "measure"){
             [[s.x1,s.y1,"1"],[s.x2,s.y2,"2"]].forEach(function(h){
               el("circle", {cx:h[0], cy:h[1], r:5, class:"handle", "data-handle":h[2], "data-id":s.id}, handlesLayer);
             });
-            if (s.type === "measure"){
-              var delAnchor = labelAnchor(s);
-              if (delAnchor){
-                var delX = delAnchor.finalX - 22, delY = delAnchor.finalY - 4;
-                var delG = el("g", {class:"del-handle", "data-handle":"delete", "data-id":s.id}, handlesLayer);
-                el("circle", {cx:delX, cy:delY, r:8}, delG);
-                var delT = el("text", {x:delX, y:delY+3.5, "text-anchor":"middle", "font-size":"11", "font-weight":"700"}, delG);
-                delT.textContent = "×";
-              }
+            var delAnchor = labelAnchor(s);
+            if (delAnchor){
+              var delX = delAnchor.finalX - 22, delY = delAnchor.finalY - 4;
+              var delG = el("g", {class:"del-handle", "data-handle":"delete", "data-id":s.id}, handlesLayer);
+              el("circle", {cx:delX, cy:delY, r:8}, delG);
+              var delT = el("text", {x:delX, y:delY+3.5, "text-anchor":"middle", "font-size":"11", "font-weight":"700"}, delG);
+              delT.textContent = "×";
             }
-          } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "layoutframe" || s.type === "callout"){
+          } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "layoutframe"){
+            [["tl",b.x,b.y,"corner"],["tr",b.x+b.w,b.y,"corner"],["bl",b.x,b.y+b.h,"corner"],["br",b.x+b.w,b.y+b.h,"corner"]].forEach(function(h){
+              var hp = gumPt(h[1], h[2]);
+              el("circle", {cx:hp[0], cy:hp[1], r:5, class:"handle", "data-handle":h[0], "data-id":s.id}, handlesLayer);
+            });
+            [["t",b.x+b.w/2,b.y,"y"],["b",b.x+b.w/2,b.y+b.h,"y"],["l",b.x,b.y+b.h/2,"x"],["r",b.x+b.w,b.y+b.h/2,"x"]].forEach(function(h){
+              var hp2 = gumPt(h[1], h[2]);
+              el("circle", {cx:hp2[0], cy:hp2[1], r:4.5, class:"handle handle-edge handle-" + h[3], "data-handle":h[0], "data-id":s.id}, handlesLayer);
+            });
+          } else if (s.type === "callout"){
             [["tl",b.x,b.y],["tr",b.x+b.w,b.y],["bl",b.x,b.y+b.h],["br",b.x+b.w,b.y+b.h]].forEach(function(h){
               el("circle", {cx:h[1], cy:h[2], r:5, class:"handle", "data-handle":h[0], "data-id":s.id}, handlesLayer);
             });
-            if (s.type !== "callout"){
-              [["t",b.x+b.w/2,b.y],["b",b.x+b.w/2,b.y+b.h],["l",b.x,b.y+b.h/2],["r",b.x+b.w,b.y+b.h/2]].forEach(function(h){
-                el("circle", {cx:h[1], cy:h[2], r:4.5, class:"handle handle-edge", "data-handle":h[0], "data-id":s.id}, handlesLayer);
-              });
-            }
-            if (s.type === "callout"){
-              el("circle", {cx:s.lx, cy:s.ly, r:5, class:"handle", "data-handle":"leader", "data-id":s.id}, handlesLayer);
-            }
+            el("circle", {cx:s.lx, cy:s.ly, r:5, class:"handle", "data-handle":"leader", "data-id":s.id}, handlesLayer);
           } else if (s.type === "circle"){
-            el("circle", {cx:s.cx+s.r, cy:s.cy, r:5, class:"handle", "data-handle":"r", "data-id":s.id}, handlesLayer);
-            el("circle", {cx:s.cx, cy:s.cy-(s.ry||s.r), r:5, class:"handle", "data-handle":"ry", "data-id":s.id}, handlesLayer);
+            var hpR = gumPt(s.cx+s.r, s.cy);
+            var hpRy = gumPt(s.cx, s.cy-(s.ry||s.r));
+            el("circle", {cx:hpR[0], cy:hpR[1], r:5, class:"handle handle-x", "data-handle":"r", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:hpRy[0], cy:hpRy[1], r:5, class:"handle handle-y", "data-handle":"ry", "data-id":s.id}, handlesLayer);
           } else if (s.type === "ring"){
-            el("circle", {cx:s.cx+s.rOuter, cy:s.cy, r:5, class:"handle", "data-handle":"rOuter", "data-id":s.id}, handlesLayer);
-            el("circle", {cx:s.cx, cy:s.cy-(s.rOuterY||s.rOuter), r:5, class:"handle", "data-handle":"rOuterY", "data-id":s.id}, handlesLayer);
-            el("circle", {cx:s.cx+s.rInner*0.7071, cy:s.cy-s.rInner*0.7071, r:5, class:"handle", "data-handle":"rInner", "data-id":s.id}, handlesLayer);
+            var hpO = gumPt(s.cx+s.rOuter, s.cy);
+            var hpOy = gumPt(s.cx, s.cy-(s.rOuterY||s.rOuter));
+            var hpI = gumPt(s.cx+s.rInner*0.7071, s.cy-s.rInner*0.7071);
+            el("circle", {cx:hpO[0], cy:hpO[1], r:5, class:"handle handle-x", "data-handle":"rOuter", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:hpOy[0], cy:hpOy[1], r:5, class:"handle handle-y", "data-handle":"rOuterY", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:hpI[0], cy:hpI[1], r:5, class:"handle", "data-handle":"rInner", "data-id":s.id}, handlesLayer);
           } else if (s.type === "triangle" || s.type === "polyline"){
             s.points.forEach(function(pt, pi){
-              el("circle", {cx:pt[0], cy:pt[1], r:5, class:"handle", "data-handle":String(pi), "data-id":s.id}, handlesLayer);
+              var hp3 = gumPt(pt[0], pt[1]);
+              el("circle", {cx:hp3[0], cy:hp3[1], r:5, class:"handle", "data-handle":String(pi), "data-id":s.id}, handlesLayer);
             });
           } else if (s.type === "part"){
             var pr = 18 * (s.scale||1) * partScaleFactor();
@@ -5474,7 +5525,13 @@
             var rad = (s.rot||0) * Math.PI/180;
             var hx = s.x + R*Math.sin(rad), hy = s.y - R*Math.cos(rad);
             el("line", {x1:s.x, y1:s.y, x2:hx, y2:hy, stroke:"var(--accent)", "stroke-width":1, "stroke-dasharray":"2 2"}, handlesLayer);
-            el("circle", {cx:hx, cy:hy, r:6, class:"handle", "data-rotate":"1", "data-id":s.id}, handlesLayer);
+            el("circle", {cx:hx, cy:hy, r:6, class:"handle handle-rot", "data-rotate":"1", "data-id":s.id}, handlesLayer);
+          } else if (GUMBALL_ROTATABLE_TYPES[s.type]){
+            var gR = Math.hypot(b.w, b.h)/2 + 24;
+            var grad = gumRot * Math.PI/180;
+            var ghx = gumCx + gR*Math.sin(grad), ghy = gumCy - gR*Math.cos(grad);
+            el("line", {x1:gumCx, y1:gumCy, x2:ghx, y2:ghy, stroke:"var(--accent)", "stroke-width":1, "stroke-dasharray":"2 2"}, handlesLayer);
+            el("circle", {cx:ghx, cy:ghy, r:6, class:"handle handle-rot", "data-rotate":"1", "data-id":s.id}, handlesLayer);
           }
           var lblHandleAnchor = labelAnchor(s);
           if (lblHandleAnchor && labelTextOverride(s, "x") !== null){
@@ -6473,7 +6530,13 @@
           startAngle: Math.atan2(p.y - rgBox.cy, p.x - rgBox.cx) * 180/Math.PI,
           pushed:false};
       } else {
-        dragging = {mode:"rotate", id: rotateTarget.dataset.id, pushed:false};
+        var rotShape = findShape(rotateTarget.dataset.id);
+        var rotPivot = null;
+        if (rotShape && rotShape.type !== "part"){
+          var rotB = boundsOf(rotShape);
+          rotPivot = {x: rotB.x + rotB.w/2, y: rotB.y + rotB.h/2};
+        }
+        dragging = {mode:"rotate", id: rotateTarget.dataset.id, pivot: rotPivot, pushed:false};
       }
       svg.setPointerCapture(evt.pointerId);
       return;
@@ -6491,7 +6554,10 @@
     }
 
     if (handleTarget){
-      dragging = {mode:"handle", id: handleTarget.dataset.id, which: handleTarget.dataset.handle, startP:{x:p.x,y:p.y}, pushed:false};
+      var handleShape = findShape(handleTarget.dataset.id);
+      var handleShapeBounds = handleShape ? boundsOf(handleShape) : null;
+      var startCenter = handleShapeBounds ? {x: handleShapeBounds.x + handleShapeBounds.w/2, y: handleShapeBounds.y + handleShapeBounds.h/2} : null;
+      dragging = {mode:"handle", id: handleTarget.dataset.id, which: handleTarget.dataset.handle, startP:{x:p.x,y:p.y}, startCenter: startCenter, pushed:false};
       svg.setPointerCapture(evt.pointerId);
       return;
     }
@@ -6928,63 +6994,96 @@
       if (!s) return;
       if (!dragging.pushed){ pushUndo(); dragging.pushed = true; }
       if (dragging.mode === "handle"){
+        var pR = (s.rot && dragging.startCenter && dragging.which !== "label") ? inverseRotatePoint(p.x, p.y, dragging.startCenter.x, dragging.startCenter.y, s.rot) : p;
         if (dragging.which === "label"){
           var lblDragAnchor = labelAnchor(s);
           if (lblDragAnchor){
             s.labelDragDx = pxToM(p.x - lblDragAnchor.baseX);
             s.labelDragDy = pxToM(p.y - lblDragAnchor.baseY);
           }
-        } else if (s.type === "line" || s.type === "measure"){
+        } else if (s.type === "line"){
           if (dragging.which === "1"){
-            if (evt.shiftKey){ var lp1 = axisLockPoint(s.x2, s.y2, p.x, p.y); s.x1 = lp1.x; s.y1 = lp1.y; }
+            if (evt.shiftKey){ var lp1 = axisLockPoint(s.x2, s.y2, pR.x, pR.y); s.x1 = lp1.x; s.y1 = lp1.y; }
+            else { s.x1 = pR.x; s.y1 = pR.y; }
+          } else {
+            if (evt.shiftKey){ var lp2 = axisLockPoint(s.x1, s.y1, pR.x, pR.y); s.x2 = lp2.x; s.y2 = lp2.y; }
+            else { s.x2 = pR.x; s.y2 = pR.y; }
+          }
+        } else if (s.type === "measure"){
+          if (dragging.which === "1"){
+            if (evt.shiftKey){ var lpm1 = axisLockPoint(s.x2, s.y2, p.x, p.y); s.x1 = lpm1.x; s.y1 = lpm1.y; }
             else { s.x1 = p.x; s.y1 = p.y; }
           } else {
-            if (evt.shiftKey){ var lp2 = axisLockPoint(s.x1, s.y1, p.x, p.y); s.x2 = lp2.x; s.y2 = lp2.y; }
+            if (evt.shiftKey){ var lpm2 = axisLockPoint(s.x1, s.y1, p.x, p.y); s.x2 = lpm2.x; s.y2 = lpm2.y; }
             else { s.x2 = p.x; s.y2 = p.y; }
           }
         } else if (s.type === "callout" && dragging.which === "leader"){
           s.lx = p.x; s.ly = p.y;
-        } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "layoutframe" || s.type === "callout"){
+        } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "layoutframe"){
           var bb = boundsOf(s);
           var left = bb.x, top = bb.y, right = bb.x+bb.w, bottom = bb.y+bb.h;
-          var sp = dragging.startP || p;
-          var dominantX = evt.shiftKey && Math.abs(p.x-sp.x) >= Math.abs(p.y-sp.y);
+          var sp = dragging.startP ? (s.rot && dragging.startCenter ? inverseRotatePoint(dragging.startP.x, dragging.startP.y, dragging.startCenter.x, dragging.startCenter.y, s.rot) : dragging.startP) : pR;
+          var dominantX = evt.shiftKey && Math.abs(pR.x-sp.x) >= Math.abs(pR.y-sp.y);
           var dominantY = evt.shiftKey && !dominantX;
           if (dragging.which === "tl"){
-            if (!dominantY) left = p.x;
-            if (!dominantX) top = p.y;
+            if (!dominantY) left = pR.x;
+            if (!dominantX) top = pR.y;
           } else if (dragging.which === "tr"){
-            if (!dominantY) right = p.x;
-            if (!dominantX) top = p.y;
+            if (!dominantY) right = pR.x;
+            if (!dominantX) top = pR.y;
           } else if (dragging.which === "bl"){
-            if (!dominantY) left = p.x;
-            if (!dominantX) bottom = p.y;
+            if (!dominantY) left = pR.x;
+            if (!dominantX) bottom = pR.y;
           } else if (dragging.which === "br"){
-            if (!dominantY) right = p.x;
-            if (!dominantX) bottom = p.y;
-          } else if (dragging.which === "t"){ top = p.y; }
-          else if (dragging.which === "b"){ bottom = p.y; }
-          else if (dragging.which === "l"){ left = p.x; }
-          else if (dragging.which === "r"){ right = p.x; }
+            if (!dominantY) right = pR.x;
+            if (!dominantX) bottom = pR.y;
+          } else if (dragging.which === "t"){ top = pR.y; }
+          else if (dragging.which === "b"){ bottom = pR.y; }
+          else if (dragging.which === "l"){ left = pR.x; }
+          else if (dragging.which === "r"){ right = pR.x; }
           s.x = left; s.y = top; s.w = right - left; s.h = bottom - top;
+        } else if (s.type === "callout"){
+          var bbC = boundsOf(s);
+          var leftC = bbC.x, topC = bbC.y, rightC = bbC.x+bbC.w, bottomC = bbC.y+bbC.h;
+          var spC = dragging.startP || p;
+          var dominantXC = evt.shiftKey && Math.abs(p.x-spC.x) >= Math.abs(p.y-spC.y);
+          var dominantYC = evt.shiftKey && !dominantXC;
+          if (dragging.which === "tl"){ if (!dominantYC) leftC = p.x; if (!dominantXC) topC = p.y; }
+          else if (dragging.which === "tr"){ if (!dominantYC) rightC = p.x; if (!dominantXC) topC = p.y; }
+          else if (dragging.which === "bl"){ if (!dominantYC) leftC = p.x; if (!dominantXC) bottomC = p.y; }
+          else if (dragging.which === "br"){ if (!dominantYC) rightC = p.x; if (!dominantXC) bottomC = p.y; }
+          else if (dragging.which === "t"){ topC = p.y; }
+          else if (dragging.which === "b"){ bottomC = p.y; }
+          else if (dragging.which === "l"){ leftC = p.x; }
+          else if (dragging.which === "r"){ rightC = p.x; }
+          s.x = leftC; s.y = topC; s.w = rightC - leftC; s.h = bottomC - topC;
         } else if (s.type === "circle"){
-          if (dragging.which === "ry"){ s.ry = Math.max(4, Math.abs(p.y - s.cy)); }
-          else { s.r = Math.max(4, Math.abs(p.x - s.cx)); }
+          if (dragging.which === "ry"){ s.ry = Math.max(4, Math.abs(pR.y - s.cy)); }
+          else { s.r = Math.max(4, Math.abs(pR.x - s.cx)); }
         } else if (s.type === "ring"){
-          if (dragging.which === "rOuter"){ s.rOuter = Math.max(s.rInner + 2, Math.abs(p.x - s.cx)); }
-          else if (dragging.which === "rOuterY"){ s.rOuterY = Math.max((s.rInner||2) + 2, Math.abs(p.y - s.cy)); }
-          else if (dragging.which === "rInner"){ s.rInner = Math.min(s.rOuter - 2, Math.max(2, Math.hypot(p.x - s.cx, p.y - s.cy))); }
+          if (dragging.which === "rOuter"){ s.rOuter = Math.max(s.rInner + 2, Math.abs(pR.x - s.cx)); }
+          else if (dragging.which === "rOuterY"){ s.rOuterY = Math.max((s.rInner||2) + 2, Math.abs(pR.y - s.cy)); }
+          else if (dragging.which === "rInner"){ s.rInner = Math.min(s.rOuter - 2, Math.max(2, Math.hypot(pR.x - s.cx, pR.y - s.cy))); }
         } else if (s.type === "triangle" || s.type === "polyline"){
           var vi = parseInt(dragging.which, 10);
-          s.points[vi] = [p.x, p.y];
+          s.points[vi] = [pR.x, pR.y];
         } else if (s.type === "part" && dragging.which === "scale"){
           s.scale = Math.max(0.2, Math.min(6, Math.hypot(p.x - s.x, p.y - s.y) / (18*Math.SQRT2*partScaleFactor())));
         }
       } else if (dragging.mode === "rotate"){
-        var dx = p.x - s.x, dy = p.y - s.y;
-        var rot = Math.atan2(dx, -dy) * 180/Math.PI;
-        if (rot < 0) rot += 360;
-        s.rot = Math.round(rot/15)*15 % 360;
+        if (s.type === "part"){
+          var dx = p.x - s.x, dy = p.y - s.y;
+          var rot = Math.atan2(dx, -dy) * 180/Math.PI;
+          if (rot < 0) rot += 360;
+          s.rot = Math.round(rot/15)*15 % 360;
+        } else {
+          var pvt = dragging.pivot || {x:0, y:0};
+          var dx3 = p.x - pvt.x, dy3 = p.y - pvt.y;
+          var rot3 = Math.atan2(dx3, -dy3) * 180/Math.PI;
+          if (rot3 < 0) rot3 += 360;
+          if (evt.shiftKey) rot3 = Math.round(rot3/15)*15 % 360;
+          s.rot = rot3;
+        }
       } else if (dragging.mode === "move"){
         var dx2 = p.x - dragging.startX, dy2 = p.y - dragging.startY;
         var o = dragging.orig;
@@ -7435,12 +7534,13 @@
       pendingTemplate = {kind:"swall", w:w, h:h}; setTool("templatePlace");
     });
   });
-  document.getElementById("undoBtn").addEventListener("click", undo);
-  document.getElementById("redoBtn").addEventListener("click", redo);
-  document.getElementById("duplicateBtn").addEventListener("click", duplicateSelection);
-  document.getElementById("flipHBtn").addEventListener("click", function(){ flipSelection("h"); });
-  document.getElementById("flipVBtn").addEventListener("click", function(){ flipSelection("v"); });
+  document.getElementById("undoBtn").addEventListener("click", function(){ closeAllPopovers(); undo(); });
+  document.getElementById("redoBtn").addEventListener("click", function(){ closeAllPopovers(); redo(); });
+  document.getElementById("duplicateBtn").addEventListener("click", function(){ closeAllPopovers(); duplicateSelection(); });
+  document.getElementById("flipHBtn").addEventListener("click", function(){ closeAllPopovers(); flipSelection("h"); });
+  document.getElementById("flipVBtn").addEventListener("click", function(){ closeAllPopovers(); flipSelection("v"); });
   document.getElementById("rotateByBtn").addEventListener("click", function(){
+    closeAllPopovers();
     if (!state.selectedIds.length && !state.selectedId) return;
     promptModal("Rotate selection by (degrees, + = clockwise)", function(val){
       var deg = parseFloat(val);
@@ -7482,8 +7582,8 @@
   document.getElementById("prodBackBtn").addEventListener("click", function(){
     setProductionMode(false);
   });
-  document.getElementById("saveFileBtn").addEventListener("click", showSaveProjectModal);
-  document.getElementById("openFileBtn").addEventListener("click", openProjectPicker);
+  document.getElementById("saveFileBtn").addEventListener("click", function(){ closeAllPopovers(); showSaveProjectModal(); });
+  document.getElementById("openFileBtn").addEventListener("click", function(){ closeAllPopovers(); openProjectPicker(); });
   document.getElementById("projectFileInput").addEventListener("change", function(e){
     var file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -7583,6 +7683,7 @@
     requestAnimationFrame(function(){ syncCanvasWrapSize(); drawRulers(); });
   }
   document.getElementById("focusBtn").addEventListener("click", function(){
+    closeAllPopovers();
     setFocusMode(!document.body.classList.contains("focus-mode"));
   });
   document.addEventListener("mousemove", function(e){
@@ -7606,6 +7707,7 @@
     try{ localStorage.setItem(PAPER_KEY, mode); }catch(e){}
   }
   document.getElementById("paperBtn").addEventListener("click", function(){
+    closeAllPopovers();
     var cur = document.documentElement.getAttribute("data-paper");
     setPaperColor(cur === "black" ? "white" : "black");
   });
@@ -7628,6 +7730,7 @@
     this.setAttribute("aria-pressed", String(gridSnapEnabled));
   });
   document.getElementById("clearBtn").addEventListener("click", function(){
+    closeAllPopovers();
     confirmModal("Clear the whole sheet? This can't be undone.", "Clear canvas", function(){
       state.shapes = []; state.groups = []; state.sections = []; clearSelection(); undoStack = []; redoStack = []; render();
     });
@@ -7717,7 +7820,7 @@
     }
     render();
   });
-  document.getElementById("newDrawingBtn").addEventListener("click", openNewDrawing);
+  document.getElementById("newDrawingBtn").addEventListener("click", function(){ closeAllPopovers(); openNewDrawing(); });
 
   // ---------- boot ----------
   load();
