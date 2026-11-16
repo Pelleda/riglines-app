@@ -653,8 +653,10 @@
     <div class="hdr-popover" id="outputPopover" hidden>
       <button type="button" class="btn menu-toggle" id="productionBtn" aria-pressed="false" title="Production sheet: every fitting kind and rope/panel color, each with one editable Jakob code">Production sheet</button>
       <button type="button" class="btn tpl-btn" id="exportBtn" title="Export the drawing as an image or SVG code">Export…</button>
+      <button type="button" class="btn tpl-btn" id="importDxfBtn" title="Import a .dxf file (LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/TEXT) onto this sheet. Binary .dwg isn't supported — save as DXF first.">Import DXF…</button>
     </div>
   </div>
+  <input type="file" id="dxfFileInput" accept=".dxf" hidden>
 
   <div class="spacer"></div>
 
@@ -1618,6 +1620,191 @@
       ? "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n" + state.legend.length + "\n" + tableLines.join("\n") + "\n0\nENDTAB\n0\nENDSEC\n"
       : "";
     return tablesSection + "0\nSECTION\n2\nENTITIES\n" + lines.join("\n") + "\n0\nENDSEC\n0\nEOF\n";
+  }
+  // ---- DXF import — ASCII DXF only (the open, documented interchange format
+  // AutoCAD LT also reads/writes). Binary DWG is a proprietary, undocumented
+  // format with no legitimate client-side parser, so it isn't supported. ----
+  var ACI_COLORS = {1:"#ff0000", 2:"#ffff00", 3:"#00ff00", 4:"#00ffff", 5:"#0000ff", 6:"#ff00ff", 7:"#1b1b1b", 8:"#414141", 9:"#808080"};
+  function trueColorToHex(n){
+    if (n == null) return null;
+    var v = n & 0xFFFFFF;
+    return "#" + ("000000" + v.toString(16)).slice(-6);
+  }
+  function parseDXFPairs(text){
+    var rawLines = text.split(/\r\n|\r|\n/);
+    var pairs = [];
+    for (var i=0; i+1<rawLines.length; i+=2){
+      var code = parseInt(rawLines[i].trim(), 10);
+      if (isNaN(code)) continue;
+      pairs.push({code:code, value: rawLines[i+1] != null ? rawLines[i+1].replace(/\r$/, "") : ""});
+    }
+    return pairs;
+  }
+  function parseDXF(text){
+    var pairs = parseDXFPairs(text);
+    var insUnitsToM = {1:0.0254, 2:0.3048, 4:0.001, 5:0.01, 6:1}; // inches, feet, mm, cm, m
+    var unitScale = 1;
+    var layerColors = {}; // name -> hex
+    var entities = [];
+    var i = 0, n = pairs.length;
+    // header: $INSUNITS
+    while (i < n){
+      if (pairs[i].code === 9 && pairs[i].value === "$INSUNITS" && pairs[i+1] && pairs[i+1].code === 70){
+        var u = parseInt(pairs[i+1].value, 10);
+        if (insUnitsToM[u]) unitScale = insUnitsToM[u];
+        i += 2; continue;
+      }
+      if (pairs[i].code === 0 && pairs[i].value === "ENDSEC" ) { i++; continue; }
+      if (pairs[i].code === 0 && pairs[i].value === "SECTION"){ i++; continue; }
+      if (pairs[i].code === 2 && pairs[i].value === "ENTITIES"){ i++; break; }
+      i++;
+    }
+    // layer table (best-effort — may appear before or we may have already skipped past it; do a separate pass)
+    for (var li = 0; li < n; li++){
+      if (pairs[li].code === 0 && pairs[li].value === "LAYER"){
+        var lname = null, lcolorIdx = null, ltrue = null, lj = li+1;
+        while (lj < n && pairs[lj].code !== 0){
+          if (pairs[lj].code === 2 && lname === null) lname = pairs[lj].value;
+          else if (pairs[lj].code === 62) lcolorIdx = parseInt(pairs[lj].value, 10);
+          else if (pairs[lj].code === 420) ltrue = parseInt(pairs[lj].value, 10);
+          lj++;
+        }
+        if (lname){
+          var lhex = (ltrue != null ? trueColorToHex(ltrue) : null) || ACI_COLORS[Math.abs(lcolorIdx)] || null;
+          if (lhex) layerColors[lname] = lhex;
+        }
+      }
+    }
+    // entities section
+    while (i < n && !(pairs[i].code === 0 && pairs[i].value === "ENDSEC")){
+      if (pairs[i].code !== 0){ i++; continue; }
+      var etype = pairs[i].value;
+      var j = i + 1;
+      var fields = {}; // last-wins scalar fields
+      var pts = []; // for LWPOLYLINE / POLYLINE+VERTEX
+      var curPt = null;
+      while (j < n && pairs[j].code !== 0){
+        var c = pairs[j].code, v = pairs[j].value;
+        if (c === 10){ curPt = [parseFloat(v), 0]; pts.push(curPt); fields[10] = v; }
+        else if (c === 20 && curPt){ curPt[1] = parseFloat(v); fields[20] = v; }
+        else { fields[c] = v; }
+        j++;
+      }
+      if (etype === "POLYLINE"){
+        // old-style: real vertices come as separate VERTEX entities until SEQEND
+        var vpts = [];
+        var k = j;
+        while (k < n && !(pairs[k].code === 0 && pairs[k].value === "SEQEND")){
+          if (pairs[k].code === 0 && pairs[k].value === "VERTEX"){
+            var vx = null, vy = null, m = k+1;
+            while (m < n && pairs[m].code !== 0){
+              if (pairs[m].code === 10) vx = parseFloat(pairs[m].value);
+              else if (pairs[m].code === 20) vy = parseFloat(pairs[m].value);
+              m++;
+            }
+            if (vx != null && vy != null) vpts.push([vx, vy]);
+            k = m;
+          } else { k++; }
+        }
+        j = (k < n) ? k+1 : k;
+        entities.push({type:"POLYLINE", pts:vpts, closed: ((parseInt(fields[70]||0,10)) & 1) === 1, layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      } else if (etype === "LWPOLYLINE"){
+        entities.push({type:"POLYLINE", pts:pts, closed: ((parseInt(fields[70]||0,10)) & 1) === 1, layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      } else if (etype === "LINE"){
+        var lx1 = parseFloat(fields[10]), ly1 = parseFloat(fields[20]), lx2 = parseFloat(fields[11]), ly2 = parseFloat(fields[21]);
+        entities.push({type:"LINE", x1:lx1, y1:ly1, x2:lx2, y2:ly2, layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      } else if (etype === "CIRCLE"){
+        entities.push({type:"CIRCLE", cx:parseFloat(fields[10]), cy:parseFloat(fields[20]), r:parseFloat(fields[40]), layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      } else if (etype === "ARC"){
+        entities.push({type:"ARC", cx:parseFloat(fields[10]), cy:parseFloat(fields[20]), r:parseFloat(fields[40]), a1:parseFloat(fields[50]||0), a2:parseFloat(fields[51]||360), layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      } else if (etype === "TEXT" || etype === "MTEXT"){
+        entities.push({type:"TEXT", x:parseFloat(fields[10]), y:parseFloat(fields[20]), h:parseFloat(fields[40]||2.5), text:(fields[1]||"").replace(/\\P/g,"\n").replace(/\{|\}/g,""), layer: fields[8], colorIdx: fields[62] != null ? parseInt(fields[62],10) : null, trueColor: fields[420] != null ? parseInt(fields[420],10) : null});
+      }
+      i = j;
+    }
+    return {entities: entities, layerColors: layerColors, unitScale: unitScale};
+  }
+  function resolveDXFColor(e, layerColors){
+    if (e.trueColor != null) return trueColorToHex(e.trueColor);
+    if (e.colorIdx != null && ACI_COLORS[Math.abs(e.colorIdx)]) return ACI_COLORS[Math.abs(e.colorIdx)];
+    if (e.layer && layerColors[e.layer]) return layerColors[e.layer];
+    return null;
+  }
+  function importDXFText(text, filename){
+    var parsed;
+    try{ parsed = parseDXF(text); }
+    catch(e){ notify("Couldn't parse that DXF file."); return; }
+    if (!parsed.entities.length){ notify("No drawable entities found in that DXF (LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/TEXT are supported)."); return; }
+    var us = parsed.unitScale;
+    var worldPts = [];
+    parsed.entities.forEach(function(e){
+      if (e.type === "LINE"){ worldPts.push([e.x1,e.y1],[e.x2,e.y2]); }
+      else if (e.type === "CIRCLE"){ worldPts.push([e.cx-e.r,e.cy-e.r],[e.cx+e.r,e.cy+e.r]); }
+      else if (e.type === "ARC"){ worldPts.push([e.cx-e.r,e.cy-e.r],[e.cx+e.r,e.cy+e.r]); }
+      else if (e.type === "TEXT"){ worldPts.push([e.x,e.y]); }
+      else if (e.type === "POLYLINE"){ e.pts.forEach(function(p){ worldPts.push(p); }); }
+    });
+    if (!worldPts.length){ notify("That DXF had no usable geometry."); return; }
+    var minX = Math.min.apply(null, worldPts.map(function(p){ return p[0]; })) * us;
+    var maxY = Math.max.apply(null, worldPts.map(function(p){ return p[1]; })) * us;
+    var maxX = Math.max.apply(null, worldPts.map(function(p){ return p[0]; })) * us;
+    var minY = Math.min.apply(null, worldPts.map(function(p){ return p[1]; })) * us;
+    var marginPx = mToPx(0.2);
+    function toPx(wx, wy){ return [ (wx*us - minX) * state.scale + marginPx, (maxY - wy*us) * state.scale + marginPx ]; }
+    var newLegendColors = {};
+    function colorFor(e){
+      var hex = resolveDXFColor(e, parsed.layerColors);
+      if (!hex) return state.color;
+      newLegendColors[hex] = e.layer || "Imported";
+      return hex;
+    }
+    pushUndo();
+    var added = 0;
+    parsed.entities.forEach(function(e){
+      var color = colorFor(e);
+      if (e.type === "LINE"){
+        var p1 = toPx(e.x1,e.y1), p2 = toPx(e.x2,e.y2);
+        state.shapes.push({id:uid(), type:"line", x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1], color:color});
+        added++;
+      } else if (e.type === "CIRCLE"){
+        var c = toPx(e.cx, e.cy);
+        state.shapes.push({id:uid(), type:"circle", cx:c[0], cy:c[1], r: e.r*us*state.scale, color:color});
+        added++;
+      } else if (e.type === "ARC"){
+        var segN = 24;
+        var a1 = e.a1 * Math.PI/180, a2 = e.a2 * Math.PI/180;
+        if (a2 <= a1) a2 += Math.PI*2;
+        var apts = [];
+        for (var ai=0; ai<=segN; ai++){
+          var a = a1 + (a2-a1)*ai/segN;
+          apts.push(toPx(e.cx + e.r*Math.cos(a), e.cy + e.r*Math.sin(a)));
+        }
+        state.shapes.push({id:uid(), type:"polyline", points:apts, color:color});
+        added++;
+      } else if (e.type === "TEXT"){
+        var tp = toPx(e.x, e.y);
+        state.shapes.push({id:uid(), type:"text", x:tp[0], y:tp[1], text:e.text, color:color, fontSize: Math.max(8, e.h*us*state.scale*0.8)});
+        added++;
+      } else if (e.type === "POLYLINE" && e.pts.length >= 2){
+        var ppts = e.pts.map(function(p){ return toPx(p[0], p[1]); });
+        if (e.closed) ppts.push(ppts[0]);
+        state.shapes.push({id:uid(), type:"polyline", points:ppts, color:color});
+        added++;
+      }
+    });
+    Object.keys(newLegendColors).forEach(function(hex){
+      if (!state.legend.some(function(lf){ return lf.color === hex; })){
+        state.legend.push({color:hex, name:newLegendColors[hex], visible:true, locked:false});
+      }
+    });
+    var importedWM = (maxX-minX) + 0.4, importedHM = (maxY-minY) + 0.4;
+    if (importedWM > state.canvasW) state.canvasW = importedWM;
+    if (importedHM > state.canvasH) state.canvasH = importedHM;
+    applyCanvasSize();
+    document.getElementById("canvasWInput").value = Math.round(state.canvasW*100)/100;
+    document.getElementById("canvasHInput").value = Math.round(state.canvasH*100)/100;
+    render();
+    notify("Imported " + added + " shape" + (added === 1 ? "" : "s") + " from " + filename + ".");
   }
   function svgStringToImage(svgString, onReady){
     var svg64 = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgString)));
@@ -7196,6 +7383,19 @@
     if (file) openProjectFile(file);
   });
   document.getElementById("exportBtn").addEventListener("click", function(){ closeAllPopovers(); exportDrawing(); });
+  document.getElementById("importDxfBtn").addEventListener("click", function(){
+    closeAllPopovers();
+    document.getElementById("dxfFileInput").click();
+  });
+  document.getElementById("dxfFileInput").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onerror = function(){ notify("Couldn't read that file."); };
+    reader.onload = function(){ importDXFText(String(reader.result), file.name); };
+    reader.readAsText(file);
+  });
   document.getElementById("insertImageBtn").addEventListener("click", function(){
     closeAllPopovers();
     document.getElementById("imageFileInput").click();
