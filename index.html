@@ -209,10 +209,35 @@
 
   .app{ flex:1 1 auto; display:flex; min-height:0; }
   .side-left{
-    width:200px; flex:0 0 auto; background:var(--panel); border-right:1px solid var(--border);
+    width:260px; flex:0 0 auto; background:var(--panel); border-right:1px solid var(--border);
     display:flex; flex-direction:column; min-height:0;
   }
-  .canvas-col{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .side-left.collapsed{ width:0; min-width:0; border-right:none; overflow:hidden; }
+  .left-tabs{ display:flex; align-items:center; gap:2px; padding:6px 6px 0; background:var(--panel-2); border-bottom:1px solid var(--border); flex:0 0 auto; }
+  .left-tab-btn{
+    flex:1 1 auto; border:1px solid transparent; border-bottom:none; border-radius:var(--radius) var(--radius) 0 0;
+    background:transparent; color:var(--ink-soft); padding:7px 4px; font:inherit; font-size:var(--fs-xs);
+    cursor:pointer; white-space:nowrap;
+  }
+  .left-tab-btn:hover{ color:var(--ink); background:var(--panel); }
+  .left-tab-btn.active{ background:var(--panel); border-color:var(--border); color:var(--accent); font-weight:600; }
+  .left-collapse-btn{ flex:0 0 auto; border:none; background:transparent; color:var(--ink-soft); cursor:pointer; padding:4px 7px; font-size:12px; }
+  .left-collapse-btn:hover{ color:var(--accent); }
+  .left-panel-body{
+    flex:1 1 auto; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; min-height:0;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .left-panel-body::-webkit-scrollbar{ width:7px; }
+  .left-panel-body::-webkit-scrollbar-track{ background:transparent; }
+  .left-panel-body::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  .left-panel-group{ display:flex; flex-direction:column; }
+  .canvas-col{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; position:relative; }
+  .left-reopen-btn{
+    position:absolute; left:0; top:50%; transform:translateY(-50%); z-index:6;
+    width:20px; height:48px; border:1px solid var(--border); border-left:none; border-radius:0 var(--radius) var(--radius) 0;
+    background:var(--panel); color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .left-reopen-btn:hover{ color:var(--accent); }
   .tab-strip{ flex:0 0 auto; display:flex; align-items:stretch; gap:2px; padding:4px 6px 0; background:var(--panel-2); border-bottom:1px solid var(--border); overflow-x:auto; }
   .tab-btn{ display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; background:var(--panel-2); color:var(--ink); padding:5px 8px; font:inherit; font-size:var(--fs-sm); cursor:pointer; white-space:nowrap; max-width:160px; }
   .tab-btn.active{ background:var(--panel); border-color:var(--accent); color:var(--accent); }
@@ -287,16 +312,8 @@
   .ghost{ opacity:.5; pointer-events:none; }
   .marquee{ fill:var(--accent-soft); opacity:.55; stroke:var(--accent); stroke-width:1; stroke-dasharray:3 2; pointer-events:none; }
 
-  .side{
-    width:236px; flex:0 0 auto; background:var(--panel); border-left:1px solid var(--border);
-    overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column;
-    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
-  }
-  .side::-webkit-scrollbar{ width:7px; }
-  .side::-webkit-scrollbar-track{ background:transparent; }
-  .side::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
-  .side section, .side-left section{ padding:12px 14px; border-bottom:1px solid var(--border); }
-  .side h2, .side-left h2{
+  .side-left section{ padding:12px 14px; border-bottom:1px solid var(--border); }
+  .side-left h2{
     font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft);
     margin:0 0 10px; font-weight:600;
   }
@@ -535,11 +552,11 @@
 
   @media (max-width: 720px){
     .app{ flex-direction:column; }
-    .side-left{ width:100%; max-height:160px; border-right:none; border-bottom:1px solid var(--border); }
+    .side-left{ width:100%; max-height:280px; border-right:none; border-bottom:1px solid var(--border); }
+    .side-left.collapsed{ width:100%; height:0; max-height:0; border-bottom:none; }
     .canvas-col{ min-height:240px; }
     .tools{ width:100%; padding:6px 8px; }
-    .side{ width:100%; flex-direction:row; flex-wrap:wrap; border-left:none; border-top:1px solid var(--border); }
-    .side section{ flex:1 1 200px; border-bottom:none; border-right:1px solid var(--border); }
+    .left-reopen-btn{ left:50%; top:0; transform:translateX(-50%); width:48px; height:18px; border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); }
     header{ padding:8px 10px; }
     header h1{ font-size:1.1rem; }
   }
@@ -656,15 +673,53 @@
 
 <div class="app">
   <aside class="side-left">
-    <section style="flex:1 1 auto; border-bottom:none;">
-      <h2>Layers</h2>
-      <input type="text" class="layers-search" id="layersSearch" placeholder="Search parts…">
-      <div class="layers-list" id="layersList"></div>
-      <p class="empty" id="layersEmpty">Draw something to see it listed here.</p>
-    </section>
+    <div class="left-tabs" id="leftTabs">
+      <button type="button" class="left-tab-btn" data-panel-tab="layers">Layers</button>
+      <button type="button" class="left-tab-btn" data-panel-tab="fittings">Fittings &amp; Properties</button>
+      <button type="button" class="left-collapse-btn" id="leftCollapseBtn" title="Collapse this panel for a bigger view">⟨⟨</button>
+    </div>
+    <div class="left-panel-body" id="leftPanelBody">
+      <div class="left-panel-group" data-panel-group="layers">
+        <section style="flex:1 1 auto; border-bottom:none;">
+          <h2>Layers</h2>
+          <input type="text" class="layers-search" id="layersSearch" placeholder="Search parts…">
+          <div class="layers-list" id="layersList"></div>
+          <p class="empty" id="layersEmpty">Draw something to see it listed here.</p>
+        </section>
+      </div>
+      <div class="left-panel-group" data-panel-group="fittings" hidden>
+        <section id="favSection">
+          <div class="parts-cats">
+            <details class="parts-cat">
+              <summary>Favorites<span class="cat-count" id="favCount"></span></summary>
+              <div class="parts-grid" id="favGrid"></div>
+              <p class="empty" id="favEmpty">Star a fitting below to pin it here.</p>
+            </details>
+          </div>
+        </section>
+        <section id="customSection">
+          <div class="parts-cats">
+            <details class="parts-cat">
+              <summary>My Fittings<span class="cat-count" id="customCount"></span></summary>
+              <div class="parts-grid" id="customGrid"></div>
+              <p class="empty" id="customEmpty">Select shapes, then use "Make fitting from selection" in Properties to save a custom part here.</p>
+            </details>
+          </div>
+        </section>
+        <section>
+          <h2>Fittings</h2>
+          <div class="parts-cats" id="partsGrid"></div>
+        </section>
+        <section style="flex:1 1 auto; border-bottom:none;">
+          <h2>Properties</h2>
+          <div class="props" id="props"><p class="empty">Select a shape to edit its exact measurements.</p></div>
+        </section>
+      </div>
+    </div>
   </aside>
 
   <div class="canvas-col">
+   <button type="button" class="left-reopen-btn" id="leftReopenBtn" title="Show the Layers / Fittings / Properties panel" hidden>▶</button>
    <div class="tab-strip" id="tabStrip"></div>
    <div class="canvas-rulers">
     <div class="ruler-corner"></div>
@@ -707,35 +762,6 @@
    </div>
     <aside class="tools" id="tools"></aside>
   </div>
-
-  <aside class="side">
-    <section id="favSection">
-      <div class="parts-cats">
-        <details class="parts-cat">
-          <summary>Favorites<span class="cat-count" id="favCount"></span></summary>
-          <div class="parts-grid" id="favGrid"></div>
-          <p class="empty" id="favEmpty">Star a fitting below to pin it here.</p>
-        </details>
-      </div>
-    </section>
-    <section id="customSection">
-      <div class="parts-cats">
-        <details class="parts-cat">
-          <summary>My Fittings<span class="cat-count" id="customCount"></span></summary>
-          <div class="parts-grid" id="customGrid"></div>
-          <p class="empty" id="customEmpty">Select shapes, then use "Make fitting from selection" in Properties to save a custom part here.</p>
-        </details>
-      </div>
-    </section>
-    <section>
-      <h2>Fittings</h2>
-      <div class="parts-cats" id="partsGrid"></div>
-    </section>
-    <section style="flex:1 1 auto; border-bottom:none;">
-      <h2>Properties</h2>
-      <div class="props" id="props"><p class="empty">Select a shape to edit its exact measurements.</p></div>
-    </section>
-  </aside>
 </div>
 
 <div class="production-view" id="productionView" hidden>
@@ -845,7 +871,8 @@
     itemCodes: {},
     unit: "m",
     assembly: {endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false},
-    workTable: {shapes:[], sticky:true, open:false, posX:null, posY:null}
+    workTable: {shapes:[], sticky:true, open:false, posX:null, posY:null},
+    textStyles: [{name:"Standard", fontSize:13, bold:false}, {name:"Title", fontSize:18, bold:true}, {name:"Note", fontSize:11, bold:false}]
   };
   var undoStack = [];
   var redoStack = [];
@@ -877,6 +904,10 @@
   var pendingHatchAngle = 45;
   var HATCH_PATTERN_LABELS = {solid:"Solid", lines:"Lines", cross:"Cross", dots:"Dots", none:"None"};
   var HATCHABLE_TYPES = ["rect","net","circle","ring","triangle","polyline"];
+  var pendingTextStyle = "Standard";
+  function findTextStyle(name){
+    return (state.textStyles || []).filter(function(t){ return t.name === name; })[0] || null;
+  }
   var pendingMeasureOffset = 0.3;
   var clipboard = [];
   var snapEnabled = false;
@@ -906,6 +937,34 @@
   var workTableBtn = document.getElementById("workTableBtn");
   var hoverTip = document.getElementById("hoverTip");
   var propsEl = document.getElementById("props");
+  // ---------- left panel (Layers / Fittings / Properties tabs, collapsible for more canvas) ----------
+  var leftPanelTab = "layers";
+  var lastSelKeyForPanel = "";
+  function setLeftPanelTab(tab){
+    leftPanelTab = tab;
+    Array.prototype.forEach.call(document.querySelectorAll(".left-tab-btn"), function(b){
+      b.classList.toggle("active", b.dataset.panelTab === tab);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".left-panel-group"), function(g){
+      g.hidden = g.dataset.panelGroup !== tab;
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".left-tab-btn"), function(b){
+    b.addEventListener("click", function(){ setLeftPanelTab(b.dataset.panelTab); });
+  });
+  setLeftPanelTab("layers");
+  var sideLeftEl = document.querySelector(".side-left");
+  var leftReopenBtn = document.getElementById("leftReopenBtn");
+  document.getElementById("leftCollapseBtn").addEventListener("click", function(){
+    sideLeftEl.classList.add("collapsed");
+    leftReopenBtn.hidden = false;
+    if (typeof syncCanvasWrapSize === "function") syncCanvasWrapSize();
+  });
+  leftReopenBtn.addEventListener("click", function(){
+    sideLeftEl.classList.remove("collapsed");
+    leftReopenBtn.hidden = true;
+    if (typeof syncCanvasWrapSize === "function") syncCanvasWrapSize();
+  });
   var hintEl = document.getElementById("hint");
   var toolNameEl = document.getElementById("toolName");
   var coordX = document.getElementById("coordX");
@@ -968,6 +1027,62 @@
     inp.addEventListener("keydown", function(e){ if (e.key === "Enter") submit(); });
     m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
     m.modal.querySelector('[data-act="ok"]').addEventListener("click", submit);
+  }
+  function showTextStylesModal(){
+    var html = '<h3>Text styles</h3>' +
+      '<p class="modal-msg">Define reusable text styles — change a style here and every label using it updates everywhere on the sheet.</p>' +
+      '<div id="textStylesRows"></div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn" id="addTextStyleBtn">+ Add style</button>' +
+        '<button type="button" class="btn primary" data-act="close">Done</button>' +
+      '</div>';
+    var m = openModal(html);
+    m.modal.style.maxWidth = "440px";
+    m.modal.querySelector('[data-act="close"]').addEventListener("click", m.close);
+    function renderStyleRows(){
+      var rowsEl = m.modal.querySelector("#textStylesRows");
+      rowsEl.innerHTML = "";
+      state.textStyles.forEach(function(ts, i){
+        var row = document.createElement("div"); row.className = "row"; row.style.gap = "6px"; row.style.alignItems = "center";
+        var nameInp = document.createElement("input"); nameInp.type = "text"; nameInp.value = ts.name; nameInp.style.flex = "1.3 1 auto";
+        nameInp.addEventListener("change", function(){
+          var v = nameInp.value.trim();
+          if (!v) { nameInp.value = ts.name; return; }
+          state.shapes.forEach(function(sh){ if (sh.type === "text" && sh.styleName === ts.name) sh.styleName = v; });
+          if (pendingTextStyle === ts.name) pendingTextStyle = v;
+          ts.name = v;
+          render(); refreshTextStylePopover(); scheduleSave();
+        });
+        var sizeInp2 = document.createElement("input"); sizeInp2.type = "number"; sizeInp2.min = "6"; sizeInp2.value = ts.fontSize;
+        sizeInp2.style.width = "58px"; sizeInp2.title = "Size (pt)";
+        sizeInp2.addEventListener("change", function(){ ts.fontSize = parseFloat(sizeInp2.value) || ts.fontSize; render(); scheduleSave(); });
+        var boldLbl = document.createElement("label"); boldLbl.style.display = "flex"; boldLbl.style.alignItems = "center";
+        boldLbl.style.gap = "3px"; boldLbl.style.fontSize = "11px"; boldLbl.style.whiteSpace = "nowrap";
+        var boldChk = document.createElement("input"); boldChk.type = "checkbox"; boldChk.checked = !!ts.bold;
+        boldChk.addEventListener("change", function(){ ts.bold = boldChk.checked; render(); scheduleSave(); });
+        boldLbl.appendChild(boldChk); boldLbl.appendChild(document.createTextNode("Bold"));
+        var delBtn = document.createElement("button"); delBtn.type = "button"; delBtn.className = "btn"; delBtn.textContent = "🗑";
+        delBtn.title = "Delete this style — texts using it keep their current size as their own";
+        delBtn.disabled = state.textStyles.length <= 1;
+        delBtn.addEventListener("click", function(){
+          state.shapes.forEach(function(sh){
+            if (sh.type === "text" && sh.styleName === ts.name){ sh.fontSize = ts.fontSize; sh.bold = ts.bold; sh.styleName = null; }
+          });
+          state.textStyles.splice(i, 1);
+          if (pendingTextStyle === ts.name) pendingTextStyle = state.textStyles[0].name;
+          renderStyleRows(); refreshTextStylePopover(); render(); scheduleSave();
+        });
+        row.appendChild(nameInp); row.appendChild(sizeInp2); row.appendChild(boldLbl); row.appendChild(delBtn);
+        rowsEl.appendChild(row);
+      });
+    }
+    renderStyleRows();
+    m.modal.querySelector("#addTextStyleBtn").addEventListener("click", function(){
+      var n = 1;
+      while (state.textStyles.some(function(t2){ return t2.name === "Style " + n; })) n++;
+      state.textStyles.push({name: "Style " + n, fontSize: 13, bold: false});
+      renderStyleRows(); refreshTextStylePopover(); scheduleSave();
+    });
   }
   function constructionModal(title, defaults, onSubmit){
     var countsHtml = defaults.counts ? (
@@ -1469,7 +1584,8 @@
       } else if (s.type === "polyline"){
         entPolyline(s.points, false);
       } else if (s.type === "text"){
-        entText(s.x, s.y, 3.5 * (s.fontSize || 13) / 13, s.text || "");
+        var dxfTs = s.styleName && findTextStyle(s.styleName);
+        entText(s.x, s.y, 3.5 * (dxfTs ? dxfTs.fontSize : (s.fontSize || 13)) / 13, s.text || "");
       } else if (s.type === "callout"){
         entPolyline([[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]], true);
         var edge = boxEdgePoint(s.x, s.y, s.w, s.h, s.lx, s.ly);
@@ -1633,7 +1749,8 @@
       scale: state.scale, canvasW: state.canvasW, canvasH: state.canvasH,
       legend: state.legend, shapes: bakedShapes(), nextId: state.nextId, favParts: state.favParts,
       groups: state.groups, sections: state.sections, customParts: bakedCustomParts(),
-      itemCodes: state.itemCodes, unit: state.unit, assembly: state.assembly, workTable: state.workTable
+      itemCodes: state.itemCodes, unit: state.unit, assembly: state.assembly, workTable: state.workTable,
+      textStyles: state.textStyles
     };
   }
   function hydrateState(data){
@@ -1651,6 +1768,7 @@
     state.unit = data.unit || "m";
     state.assembly = data.assembly || state.assembly;
     state.workTable = data.workTable || {shapes:[], sticky:true, open:false, posX:null, posY:null};
+    state.textStyles = (data.textStyles && data.textStyles.length) ? data.textStyles : [{name:"Standard", fontSize:13, bold:false}, {name:"Title", fontSize:18, bold:true}, {name:"Note", fontSize:11, bold:false}];
     if (state.assembly && !state.assembly.colorA && state.assembly.color){
       state.assembly.colorA = state.assembly.colorB = state.assembly.colorCable = state.assembly.color;
     }
@@ -1661,7 +1779,8 @@
       legend: PRESETS.map(function(p){ return {color:p.color, name:p.name, visible:true, locked:false}; }),
       shapes:[], nextId:1, favParts:[], groups:[], sections:[], customParts:[], itemCodes:{},
       unit:"m", assembly:{endA:"", endB:"", colorA:null, colorB:null, colorCable:null, enabled:false},
-      workTable:{shapes:[], sticky:true, open:false, posX:null, posY:null}
+      workTable:{shapes:[], sticky:true, open:false, posX:null, posY:null},
+      textStyles:[{name:"Standard", fontSize:13, bold:false}, {name:"Title", fontSize:18, bold:true}, {name:"Note", fontSize:11, bold:false}]
     };
   }
   function projectNameFromFile(filename){
@@ -2397,6 +2516,8 @@
   var rectBtn = null, rectPopover = null;
   var measureBtn = null, measurePopover = null;
   var hatchBtn = null, hatchPopover = null;
+  var textStyleBtn = null, textStylePopover = null;
+  var refreshTextStylePopover = function(){};
   function makeToolBtn(t){
     var b = document.createElement("button");
     b.className = "tool-btn"; b.type = "button"; b.title = t.label + (t.key ? " (" + t.key + ")" : "");
@@ -2574,6 +2695,49 @@
       measureGroupEl.appendChild(measureBtn);
       measureGroupEl.appendChild(measurePopover);
       toolsEl.appendChild(measureGroupEl);
+      return;
+    }
+    if (t.id === "text"){
+      var textGroupEl = document.createElement("div");
+      textGroupEl.className = "tool-group";
+      textStyleBtn = document.createElement("button");
+      textStyleBtn.className = "tool-btn"; textStyleBtn.type = "button"; textStyleBtn.title = "Text: pick a style (" + t.key + ")";
+      textStyleBtn.setAttribute("aria-haspopup", "true"); textStyleBtn.setAttribute("aria-expanded", "false");
+      textStyleBtn.dataset.tool = "text";
+      textStyleBtn.innerHTML = t.icon + '<span class="tool-lbl">' + pendingTextStyle + '</span><span class="key">' + t.key + "</span>";
+      textStylePopover = document.createElement("div");
+      textStylePopover.className = "tool-popover"; textStylePopover.hidden = true;
+      refreshTextStylePopover = function(){
+        textStylePopover.innerHTML = "";
+        state.textStyles.forEach(function(ts2){
+          var tb = document.createElement("button");
+          tb.type = "button"; tb.className = "tool-btn"; tb.dataset.textStyleName = ts2.name;
+          tb.setAttribute("aria-pressed", String(pendingTextStyle === ts2.name));
+          tb.innerHTML = '<span class="tool-lbl">' + ts2.name + '</span>';
+          tb.title = ts2.name + " — " + ts2.fontSize + "pt" + (ts2.bold ? ", bold" : "");
+          tb.addEventListener("click", function(){
+            pendingTextStyle = ts2.name;
+            textStyleBtn.querySelector(".tool-lbl").textContent = pendingTextStyle;
+            setTool("text");
+            closeAllPopovers();
+          });
+          textStylePopover.appendChild(tb);
+        });
+        var tsSep = document.createElement("div"); tsSep.className = "tool-popover-sep";
+        textStylePopover.appendChild(tsSep);
+        var manageBtn = document.createElement("button");
+        manageBtn.type = "button"; manageBtn.className = "tool-btn";
+        manageBtn.innerHTML = '<span class="tool-lbl">Manage…</span>';
+        manageBtn.title = "Add, rename, resize or delete text styles";
+        manageBtn.addEventListener("click", function(){ closeAllPopovers(); showTextStylesModal(); });
+        textStylePopover.appendChild(manageBtn);
+      }
+      textStyleBtn.addEventListener("click", refreshTextStylePopover);
+      refreshTextStylePopover();
+      registerPopover(textStyleBtn, textStylePopover);
+      textGroupEl.appendChild(textStyleBtn);
+      textGroupEl.appendChild(textStylePopover);
+      toolsEl.appendChild(textGroupEl);
       return;
     }
     if (t.id === "hatch"){
@@ -4944,7 +5108,12 @@
         var cmText = el("text", {x:s.x+9, y:s.y-7, class:"measure-label"}, g);
         cmText.textContent = "X " + fmtLen(pxToM(s.x)) + "  Y " + fmtLen(pxToM(s.y));
       } else if (s.type === "text"){
-        var txt = el("text", {x:s.x, y:s.y, class:"part-label", fill:s.color, "font-size":(s.fontSize || 13)}, g);
+        var tsLive = s.styleName && findTextStyle(s.styleName);
+        var effFontSize = tsLive ? tsLive.fontSize : (s.fontSize || 13);
+        var effBold = tsLive ? !!tsLive.bold : !!s.bold;
+        var txtAttrs = {x:s.x, y:s.y, class:"part-label", fill:s.color, "font-size":effFontSize};
+        if (effBold) txtAttrs["font-weight"] = "700";
+        var txt = el("text", txtAttrs, g);
         txt.textContent = s.text;
       } else if (s.type === "callout"){
         var cbx=Math.min(s.x,s.x+s.w), cby=Math.min(s.y,s.y+s.h), cbw=Math.abs(s.w), cbh=Math.abs(s.h);
@@ -5475,6 +5644,9 @@
 
   // ---------- properties panel ----------
   function renderProps(){
+    var selKeyForPanel = state.selectedIds.length ? state.selectedIds.slice().sort().join(",") : (state.selectedId || "");
+    if (selKeyForPanel && selKeyForPanel !== lastSelKeyForPanel) setLeftPanelTab("fittings");
+    lastSelKeyForPanel = selKeyForPanel;
     if (architectMode){
       propsEl.innerHTML = "";
       var s0 = findShape(state.selectedId);
@@ -5774,15 +5946,44 @@
         scheduleSave();
       });
       row.appendChild(lab); row.appendChild(inp); propsEl.appendChild(row);
+      var styleRow = document.createElement("div"); styleRow.className = "row";
+      var styleLab = document.createElement("label"); styleLab.textContent = "Style";
+      var styleSel = document.createElement("select");
+      styleSel.style.flex = "1 1 auto"; styleSel.style.padding = "5px 6px"; styleSel.style.border = "1px solid var(--border)";
+      styleSel.style.borderRadius = "var(--radius)"; styleSel.style.background = "var(--panel-2)"; styleSel.style.color = "var(--ink)";
+      var customOpt = document.createElement("option"); customOpt.value = ""; customOpt.textContent = "Custom (no style)";
+      styleSel.appendChild(customOpt);
+      state.textStyles.forEach(function(ts3){
+        var o = document.createElement("option"); o.value = ts3.name; o.textContent = ts3.name;
+        if (s.styleName === ts3.name) o.selected = true;
+        styleSel.appendChild(o);
+      });
+      if (!s.styleName) customOpt.selected = true;
+      styleSel.addEventListener("change", function(){
+        s.styleName = styleSel.value || null;
+        render(); renderProps(); scheduleSave();
+      });
+      styleRow.appendChild(styleLab); styleRow.appendChild(styleSel); propsEl.appendChild(styleRow);
+      var curTs = s.styleName && findTextStyle(s.styleName);
       var sizeRow = document.createElement("div"); sizeRow.className = "row";
-      var sizeLab = document.createElement("label"); sizeLab.textContent = "Size (pt)";
+      var sizeLab = document.createElement("label"); sizeLab.textContent = curTs ? ("Size (pt) — all \"" + curTs.name + "\" text") : "Size (pt)";
       var sizeInp = document.createElement("input"); sizeInp.type = "number"; sizeInp.step = "1"; sizeInp.min = "6";
-      sizeInp.value = s.fontSize || 13;
+      sizeInp.value = curTs ? curTs.fontSize : (s.fontSize || 13);
       sizeInp.addEventListener("input", function(){
         var v = parseFloat(sizeInp.value) || 13;
-        s.fontSize = v;
-        var tEl = shapesLayer.querySelector('g[data-id="' + s.id + '"] text');
-        if (tEl) tEl.setAttribute("font-size", v);
+        if (curTs){
+          curTs.fontSize = v;
+          state.shapes.forEach(function(sh){
+            if (sh.type === "text" && sh.styleName === curTs.name){
+              var tEl2 = shapesLayer.querySelector('g[data-id="' + sh.id + '"] text');
+              if (tEl2) tEl2.setAttribute("font-size", v);
+            }
+          });
+        } else {
+          s.fontSize = v;
+          var tEl = shapesLayer.querySelector('g[data-id="' + s.id + '"] text');
+          if (tEl) tEl.setAttribute("font-size", v);
+        }
         scheduleSave();
       });
       sizeRow.appendChild(sizeLab); sizeRow.appendChild(sizeInp); propsEl.appendChild(sizeRow);
@@ -6109,7 +6310,8 @@
     if (state.tool === "text"){
       promptModal("Label text", function(txt){
         pushUndo();
-        state.shapes.push({id:uid(), type:"text", x:p.x, y:p.y, text:txt, color:state.color});
+        var txtStyle = findTextStyle(pendingTextStyle);
+        state.shapes.push({id:uid(), type:"text", x:p.x, y:p.y, text:txt, color:state.color, styleName:pendingTextStyle, fontSize: txtStyle ? txtStyle.fontSize : 13, bold: txtStyle ? !!txtStyle.bold : false});
         render();
       });
       return;
