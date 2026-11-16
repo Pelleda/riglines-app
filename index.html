@@ -847,7 +847,6 @@
   var SNAP_RADIUS = 14;
   var MEASURE_COLOR = "var(--measure)";
   var saveTimer = null;
-  var shiftHeld = false;
   var zoom = 1;
   var canvasWrap = document.getElementById("canvasWrap");
   var imageOverlay = document.getElementById("imageOverlay");
@@ -2208,7 +2207,7 @@
     {id:"callout", key:"K", short:"Marker", label:"Reference marker (box a detail, click to place the label, type a code like T1)", icon:'<svg viewBox="0 0 20 20"><rect x="2" y="2" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 1.4"/><line x1="11" y1="9" x2="16" y2="14" stroke="currentColor" stroke-width="1.4"/><text x="17" y="18" font-size="7" font-family="IBM Plex Mono, monospace" fill="currentColor">T1</text></svg>'}
   ];
   var HINTS = {
-    select: "Click a shape to select it and drag to move, or drag its small circular handles to resize (a fitting's handle resizes it, not just rectangles/circles). Drag on empty sheet to box-select several at once (Shift-drag adds to the selection); drag any selected shape to move the group. Hold Option/Alt and drag a shape to drop a duplicate right where you release it. Ctrl/Cmd+C to copy, Ctrl/Cmd+X to cut, Ctrl/Cmd+V to paste; Ctrl/Cmd+D or the Duplicate button to clone in place with a small offset. Dragging a shape snaps to other shapes' edges/centers with a guide line, like Figma. Hold Space and drag (or drag with the middle mouse button) to pan the canvas from any tool. Ctrl/Cmd+G to group a selection (click any grouped shape to select/move the whole group; click it again quickly to isolate just that one shape for editing/duplicating/deleting on its own), Ctrl/Cmd+Shift+G to ungroup. Select shapes and use \"Make fitting from selection\" in Properties to save them as a new reusable part. Press Shift to reveal a rotate handle on a selected fitting (snaps to 15°, press Shift again to hide it). Delete key removes selection.",
+    select: "Click a shape to select it and drag to move, or drag its small circular handles to resize (a fitting's handle resizes it, not just rectangles/circles). Drag on empty sheet to box-select several at once (Shift-drag adds to the selection); drag any selected shape to move the group. Hold Option/Alt and drag a shape to drop a duplicate right where you release it. Ctrl/Cmd+C to copy, Ctrl/Cmd+X to cut, Ctrl/Cmd+V to paste; Ctrl/Cmd+D or the Duplicate button to clone in place with a small offset. Dragging a shape snaps to other shapes' edges/centers with a guide line, like Figma. Hold Space and drag (or drag with the middle mouse button) to pan the canvas from any tool. Ctrl/Cmd+G to group a selection (click any grouped shape to select/move the whole group; click it again quickly to isolate just that one shape for editing/duplicating/deleting on its own), Ctrl/Cmd+Shift+G to ungroup. Select shapes and use \"Make fitting from selection\" in Properties to save them as a new reusable part. A selected fitting (or group) always shows its rotate handle above it — drag it to turn (snaps to 15° steps). Delete key removes selection.",
     line: "Click and drag to draw a cable. Its length is shown live and stays labeled after you let go.",
     polyline: "Click point to point to route a cable through a frame or structure — running total shown live. Hold Shift to snap the next segment to 15° steps off the previous one (angle shown at the joint). Press Enter or double-click to finish, Escape to cancel. Turn on Snap (header button) to lock each click onto an existing shape's endpoint or corner.",
     rect: "Click and drag to draw a rectangle. Pick Frame, Wall or Rope/cable from the Rectangle button's menu first — that's what gets drawn, and it can still be changed later in Properties.",
@@ -4197,7 +4196,7 @@
             var hyp = s.y + pr*Math.sin(prad0) + pr*Math.cos(prad0);
             el("circle", {cx:hxp, cy:hyp, r:5, class:"handle", "data-handle":"scale", "data-id":s.id}, handlesLayer);
           }
-          if (s.type === "part" && shiftHeld){
+          if (s.type === "part"){
             var R = 26;
             var rad = (s.rot||0) * Math.PI/180;
             var hx = s.x + R*Math.sin(rad), hy = s.y - R*Math.cos(rad);
@@ -4211,7 +4210,7 @@
         }
       }
     });
-    if (state.selectedIds.length > 1 && shiftHeld){
+    if (state.selectedIds.length > 1){
       var grpB = selectionBoundsBox(state.selectedIds);
       if (grpB){
         var ghx = grpB.cx, ghy = grpB.minY - 26;
@@ -4915,7 +4914,7 @@
       rb2.addEventListener("click", function(){ pushUndo(); s.rot = ((s.rot||0) + 45) % 360; render(); });
       rotRow.appendChild(rb1); rotRow.appendChild(rb2); propsEl.appendChild(rotRow);
       var p = document.createElement("p"); p.className = "empty";
-      p.textContent = "Fitting symbols are schematic, not to scale. Drag the corner handle to resize. Press Shift to reveal a drag handle that rotates in 15° steps (Shift again to hide it), or type an exact degree above.";
+      p.textContent = "Fitting symbols are schematic, not to scale. Drag the corner handle to resize. Drag the rotate handle above it to turn in 15° steps, or type an exact degree above.";
       propsEl.appendChild(p);
     } else if (s.type === "triangle"){
       var note = document.createElement("p"); note.className = "empty"; note.textContent = "Drag a corner to resize.";
@@ -5617,7 +5616,6 @@
     }
     var tag = document.activeElement && document.activeElement.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
-    if (e.key === "Shift" && !e.repeat && !shiftHeld){ shiftHeld = true; render(); }
     if (architectMode){ if (e.key === "Escape"){ clearSelection(); render(); } return; }
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "z"){ e.preventDefault(); redo(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y"){ e.preventDefault(); redo(); return; }
@@ -5663,12 +5661,10 @@
       spaceHeld = false;
       if (!panState) canvasWrap.style.cursor = "";
     }
-    if (e.key === "Shift" && shiftHeld){ shiftHeld = false; render(); }
   });
   window.addEventListener("blur", function(){
     spaceHeld = false;
     if (!panState) canvasWrap.style.cursor = "";
-    if (shiftHeld){ shiftHeld = false; render(); }
   });
 
   // ---------- header controls ----------
