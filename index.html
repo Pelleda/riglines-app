@@ -853,6 +853,7 @@
   var dragging = null;   // move/reshape state
   var offsetSourceId = null; // shape being offset by the Offset tool
   var offsetPending = null;  // {source, patch, dist} — live preview while hovering
+  var mirrorSourceIds = null; // shapes being mirrored by the Mirror tool
   var lastClickInfo = {id:null, time:0};   // manual double-click tracking (native dblclick is unreliable after setPointerCapture)
   var panState = null;   // middle-mouse-button drag-to-pan (also spacebar+drag)
   var spaceHeld = false;
@@ -2239,7 +2240,8 @@
     {id:"measure", key:"M", short:"Measure", label:"Measure (click, move, click to mark a distance)", icon:'<svg viewBox="0 0 20 20"><line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><line x1="9" y1="12" x2="12" y2="9" stroke="currentColor" stroke-width="1.6"/></svg>'},
     {id:"text", key:"X", short:"Text", label:"Text / marking", icon:'<svg viewBox="0 0 20 20"><text x="10" y="15" font-size="14" font-family="IBM Plex Mono, monospace" text-anchor="middle" fill="currentColor">A</text></svg>'},
     {id:"callout", key:"K", short:"Marker", label:"Reference marker (box a detail, click to place the label, type a code like T1)", icon:'<svg viewBox="0 0 20 20"><rect x="2" y="2" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 1.4"/><line x1="11" y1="9" x2="16" y2="14" stroke="currentColor" stroke-width="1.4"/><text x="17" y="18" font-size="7" font-family="IBM Plex Mono, monospace" fill="currentColor">T1</text></svg>'},
-    {id:"offset", key:"F", short:"Offset", label:"Offset (select a cable, cable run, rectangle or circle first, then move the mouse and click)", icon:'<svg viewBox="0 0 20 20"><path d="M3 14 L10 4 L17 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M5.5 16.5 L10 8.5 L14.5 16.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>'}
+    {id:"offset", key:"F", short:"Offset", group:"modify", label:"Offset (select a cable, cable run, rectangle or circle first, then move the mouse and click)", icon:'<svg viewBox="0 0 20 20"><path d="M3 14 L10 4 L17 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M5.5 16.5 L10 8.5 L14.5 16.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>'},
+    {id:"mirror", group:"modify", label:"Mirror (select one or more shapes first, then click-click to draw the mirror axis)", icon:'<svg viewBox="0 0 20 20"><line x1="10" y1="2" x2="10" y2="18" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.6"/><path d="M8 5 L3 10 L8 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><path d="M12 5 L17 10 L12 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>'}
   ];
   var HINTS = {
     select: "Click a shape to select it and drag to move, or drag its small circular handles to resize (a fitting's handle resizes it, not just rectangles/circles). Drag on empty sheet to box-select several at once (Shift-drag adds to the selection); drag any selected shape to move the group. Hold Option/Alt and drag a shape to drop a duplicate right where you release it. Ctrl/Cmd+C to copy, Ctrl/Cmd+X to cut, Ctrl/Cmd+V to paste; Ctrl/Cmd+D or the Duplicate button to clone in place with a small offset. Dragging a shape snaps to other shapes' edges/centers with a guide line, like Figma. Hold Space and drag (or drag with the middle mouse button) to pan the canvas from any tool. Ctrl/Cmd+G to group a selection (click any grouped shape to select/move the whole group; click it again quickly to isolate just that one shape for editing/duplicating/deleting on its own), Ctrl/Cmd+Shift+G to ungroup. Select shapes and use \"Make fitting from selection\" in Properties to save them as a new reusable part. A selected fitting (or group) always shows its rotate handle above it — drag it to turn (snaps to 15° steps). Delete key removes selection.",
@@ -2253,7 +2255,8 @@
     measure: "Click once to set the start point, move the mouse (no need to hold the button) to see the live distance, then click again to mark the end point — starting or ending on a cable snaps and follows along it. Escape cancels. Doesn't count as a real cable. Use the Measure button's menu to switch between Simple (a plain label) and Precision (an offset architect-style dimension line with witness lines and tick marks).",
     text: "Click on the sheet to add a text marking.",
     callout: "Switch here with shapes selected to auto-wrap them in a box, or drag out a box yourself around a joint/detail. Then click to place the label and type a reference like T1. Drag a box corner to resize, or the label dot to re-aim the leader.",
-    offset: "Move the mouse closer to or farther from the selected shape to preview a parallel copy at that distance — click to place it. Press Enter to type an exact distance in meters instead. Escape cancels."
+    offset: "Move the mouse closer to or farther from the selected shape to preview a parallel copy at that distance — click to place it. Press Enter to type an exact distance in meters instead. Escape cancels.",
+    mirror: "Click to set the start of the mirror axis, move the mouse to aim it, click again to mirror the selection across that line. Hold Shift on the second click to replace the originals instead of keeping a copy. Escape cancels."
   };
 
   var toolsEl = document.getElementById("tools");
@@ -2280,11 +2283,12 @@
   var measureBtn = null, measurePopover = null;
   function makeToolBtn(t){
     var b = document.createElement("button");
-    b.className = "tool-btn"; b.type = "button"; b.title = t.label + " (" + t.key + ")";
+    b.className = "tool-btn"; b.type = "button"; b.title = t.label + (t.key ? " (" + t.key + ")" : "");
     b.setAttribute("aria-pressed", "false"); b.dataset.tool = t.id;
-    b.innerHTML = t.icon + '<span class="tool-lbl">' + t.short + '</span><span class="key">' + t.key + "</span>";
+    b.innerHTML = t.icon + '<span class="tool-lbl">' + t.short + '</span>' + (t.key ? '<span class="key">' + t.key + "</span>" : "");
     b.addEventListener("click", function(){
       if (t.id === "offset" && !armOffsetTool()) { closeAllPopovers(); return; }
+      if (t.id === "mirror" && !armMirrorTool()) { closeAllPopovers(); return; }
       setTool(t.id); closeAllPopovers();
     });
     return b;
@@ -2298,7 +2302,38 @@
     offsetSourceId = osel.id;
     return true;
   }
+  function armMirrorTool(){
+    var ids = state.selectedIds.length ? state.selectedIds.slice() : (state.selectedId ? [state.selectedId] : []);
+    if (!ids.length){
+      notify("Select one or more shapes first, then choose Mirror.");
+      return false;
+    }
+    mirrorSourceIds = ids;
+    return true;
+  }
+  var modifyBtn = null, modifyPopover = null;
   TOOLS.forEach(function(t){
+    if (t.group === "modify"){
+      if (!modifyBtn){
+        var modifyGroupEl = document.createElement("div");
+        modifyGroupEl.className = "tool-group";
+        modifyBtn = document.createElement("button");
+        modifyBtn.className = "tool-btn"; modifyBtn.type = "button"; modifyBtn.title = "Modify (Offset, Mirror)";
+        modifyBtn.setAttribute("aria-haspopup", "true"); modifyBtn.setAttribute("aria-expanded", "false");
+        modifyBtn.dataset.toolGroup = "modify";
+        modifyBtn.innerHTML = '<svg viewBox="0 0 20 20"><rect x="3" y="3" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
+          '<rect x="9" y="9" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 1.4"/></svg>' +
+          '<span class="tool-lbl">Modify</span>';
+        modifyPopover = document.createElement("div");
+        modifyPopover.className = "tool-popover"; modifyPopover.hidden = true;
+        registerPopover(modifyBtn, modifyPopover);
+        modifyGroupEl.appendChild(modifyBtn);
+        modifyGroupEl.appendChild(modifyPopover);
+        toolsEl.appendChild(modifyGroupEl);
+      }
+      modifyPopover.appendChild(makeToolBtn(t));
+      return;
+    }
     if (t.group === "shapes"){
       if (!shapesBtn){
         var groupEl = document.createElement("div");
@@ -2782,6 +2817,7 @@
     state.tool = id;
     draft = null;
     if (id !== "offset"){ offsetSourceId = null; offsetPending = null; }
+    if (id !== "mirror"){ mirrorSourceIds = null; }
     if (id === "callout" && (state.selectedIds.length || state.selectedId)){
       var seedIds = state.selectedIds.length ? state.selectedIds : [state.selectedId];
       var seedShapes = seedIds.map(findShape).filter(Boolean);
@@ -2802,6 +2838,7 @@
       if (b.dataset.tool) b.setAttribute("aria-pressed", String(b.dataset.tool === id));
     });
     if (shapesBtn) shapesBtn.setAttribute("aria-pressed", String(id === "circle" || id === "ring" || id === "triangle"));
+    if (modifyBtn) modifyBtn.setAttribute("aria-pressed", String(id === "offset" || id === "mirror"));
     Array.prototype.forEach.call(partsGrid.querySelectorAll(".part-btn"), function(b){
       b.setAttribute("aria-pressed", String(id === "part" && b.dataset.part === pendingPart));
     });
@@ -4283,6 +4320,105 @@
       commitOffsetShape(oSrc, patch);
     }, String(defVal));
   }
+  // ---------- Mirror tool geometry ----------
+  function reflectPointAcrossLine(px, py, x1, y1, x2, y2){
+    var dx = x2-x1, dy = y2-y1;
+    var lenSq = dx*dx+dy*dy;
+    if (!lenSq) return {x:px, y:py};
+    var t = ((px-x1)*dx + (py-y1)*dy)/lenSq;
+    var projX = x1+t*dx, projY = y1+t*dy;
+    return {x: 2*projX-px, y: 2*projY-py};
+  }
+  function reflectAngleAcrossLine(rotDeg, x1, y1, x2, y2){
+    var dx = x2-x1, dy = y2-y1, len = Math.hypot(dx,dy);
+    if (!len) return rotDeg;
+    var ux = dx/len, uy = dy/len;
+    var rad = rotDeg * Math.PI/180;
+    var vx = Math.sin(rad), vy = -Math.cos(rad);
+    var dot = vx*ux + vy*uy;
+    var rvx = 2*dot*ux - vx, rvy = 2*dot*uy - vy;
+    return Math.atan2(rvx, -rvy) * 180/Math.PI;
+  }
+  // Fields to override on a reflected clone/mutation of shape `s`. Rect/net
+  // and ring only reflect their anchor point (matching the same simplification
+  // the group-rotate handle already uses for those types) — true for mirrors
+  // across a horizontal/vertical axis, approximate at other angles.
+  function mirrorShapeFields(s, ax, ay, bx, by){
+    if (s.type === "line" || s.type === "measure"){
+      var p1 = reflectPointAcrossLine(s.x1, s.y1, ax, ay, bx, by);
+      var p2 = reflectPointAcrossLine(s.x2, s.y2, ax, ay, bx, by);
+      return {x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y};
+    }
+    if (s.type === "rect" || s.type === "net"){
+      var c = reflectPointAcrossLine(s.x+s.w/2, s.y+s.h/2, ax, ay, bx, by);
+      return {x: c.x-s.w/2, y: c.y-s.h/2};
+    }
+    if (s.type === "callout"){
+      var cc = reflectPointAcrossLine(s.x+s.w/2, s.y+s.h/2, ax, ay, bx, by);
+      var lp = reflectPointAcrossLine(s.lx, s.ly, ax, ay, bx, by);
+      return {x: cc.x-s.w/2, y: cc.y-s.h/2, lx: lp.x, ly: lp.y};
+    }
+    if (s.type === "circle" || s.type === "ring"){
+      var cc2 = reflectPointAcrossLine(s.cx, s.cy, ax, ay, bx, by);
+      return {cx: cc2.x, cy: cc2.y};
+    }
+    if (s.type === "part" || s.type === "text" || s.type === "detail"){
+      var pp = reflectPointAcrossLine(s.x, s.y, ax, ay, bx, by);
+      var patch = {x: pp.x, y: pp.y};
+      if (s.type === "part") patch.rot = ((reflectAngleAcrossLine(s.rot||0, ax, ay, bx, by) % 360) + 360) % 360;
+      return patch;
+    }
+    if (s.type === "triangle" || s.type === "polyline"){
+      return {points: s.points.map(function(pt){
+        var r = reflectPointAcrossLine(pt[0], pt[1], ax, ay, bx, by);
+        return [r.x, r.y];
+      })};
+    }
+    return null;
+  }
+  function drawGhostShape(parent, s){
+    var stroke = s.color || "#2b6cb5", sw = strokeWidthFor(s);
+    if (s.type === "line" || s.type === "measure"){
+      el("line", {x1:s.x1, y1:s.y1, x2:s.x2, y2:s.y2, stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.7}, parent);
+    } else if (s.type === "rect" || s.type === "net" || s.type === "callout"){
+      el("rect", {x:s.x, y:s.y, width:s.w, height:s.h, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.7}, parent);
+    } else if (s.type === "circle"){
+      el("circle", {cx:s.cx, cy:s.cy, r:s.r, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.7}, parent);
+    } else if (s.type === "ring"){
+      el("circle", {cx:s.cx, cy:s.cy, r:s.rOuter, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.7}, parent);
+    } else if ((s.type === "triangle" || s.type === "polyline") && s.points){
+      var ptsStr = s.points.map(function(pt){ return pt[0]+","+pt[1]; }).join(" ");
+      el("polyline", {points:ptsStr, fill:"none", stroke:stroke, "stroke-width":sw, "stroke-dasharray":"4 3", opacity:0.7}, parent);
+    } else if (s.type === "part" || s.type === "text" || s.type === "detail"){
+      el("circle", {cx:s.x, cy:s.y, r:8, fill:"none", stroke:stroke, "stroke-width":1.4, "stroke-dasharray":"3 2", opacity:0.7}, parent);
+    }
+  }
+  function commitMirror(replaceMode){
+    if (!mirrorSourceIds || !draft || draft.type !== "mirror") return;
+    if (Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1) <= 3) return;
+    pushUndo();
+    var newIds = [];
+    mirrorSourceIds.forEach(function(id){
+      var src = findShape(id);
+      if (!src) return;
+      var patch = mirrorShapeFields(src, draft.x1, draft.y1, draft.x2, draft.y2);
+      if (!patch) return;
+      if (replaceMode){
+        for (var k in patch) src[k] = patch[k];
+        newIds.push(src.id);
+      } else {
+        var copy = JSON.parse(JSON.stringify(src));
+        copy.id = uid();
+        delete copy.groupId; delete copy.locked; delete copy.hidden; delete copy.name;
+        for (var k2 in patch) copy[k2] = patch[k2];
+        state.shapes.push(copy);
+        newIds.push(copy.id);
+      }
+    });
+    state.selectedIds = newIds;
+    state.selectedId = newIds.length === 1 ? newIds[0] : null;
+    notify(replaceMode ? "Mirrored in place." : "Mirrored copy created.");
+  }
   function drawMesh(parent, id, x, y, w, h, color, cellPx){
     cellPx = Math.max(cellPx, 4);
     var patId = "netpat-" + id;
@@ -5629,6 +5765,23 @@
       return;
     }
 
+    if (state.tool === "mirror"){
+      if (!mirrorSourceIds){ setTool("select"); return; }
+      if (!draft || draft.type !== "mirror"){
+        draft = {type:"mirror", x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+        renderOverlayClear();
+        drawPinMark(overlayLayer, p.x, p.y, "var(--accent)");
+      } else {
+        commitMirror(evt.shiftKey);
+        draft = null;
+        mirrorSourceIds = null;
+        renderOverlayClear();
+        setTool("select");
+        render(); renderProps();
+      }
+      return;
+    }
+
     if (state.tool === "callout" && draft && draft.type === "callout" && draft.phase === "leader"){
       var coX = p.x, coY = p.y;
       var boxSnap = {x:draft.x, y:draft.y, w:draft.w, h:draft.h};
@@ -5682,6 +5835,26 @@
       } else {
         offsetPending = null;
         hintEl.textContent = HINTS.offset;
+      }
+      return;
+    }
+
+    if (state.tool === "mirror" && draft && draft.type === "mirror"){
+      draft.x2 = p.x; draft.y2 = p.y;
+      renderOverlayClear();
+      el("line", {x1:draft.x1, y1:draft.y1, x2:draft.x2, y2:draft.y2, stroke:"var(--accent)", "stroke-width":1, "stroke-dasharray":"5 3"}, overlayLayer);
+      drawPinMark(overlayLayer, draft.x1, draft.y1, "var(--accent)");
+      if (Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1) > 3 && mirrorSourceIds){
+        mirrorSourceIds.forEach(function(id){
+          var src = findShape(id);
+          if (!src) return;
+          var patch = mirrorShapeFields(src, draft.x1, draft.y1, draft.x2, draft.y2);
+          if (!patch) return;
+          var ghost = JSON.parse(JSON.stringify(src));
+          for (var k in patch) ghost[k] = patch[k];
+          drawGhostShape(overlayLayer, ghost);
+        });
+        hintEl.textContent = (evt.shiftKey ? "Mirror, replacing the originals" : "Mirror copy") + " — click to place. Hold Shift to replace the originals instead.";
       }
       return;
     }
@@ -5981,7 +6154,7 @@
       draft.pendingClick = true;
       return;
     }
-    if (draft && draft.type !== "triangle" && draft.type !== "polyline" && draft.type !== "measure" && draft.type !== "calibrate" && draft.type !== "callout"){
+    if (draft && draft.type !== "triangle" && draft.type !== "polyline" && draft.type !== "measure" && draft.type !== "calibrate" && draft.type !== "callout" && draft.type !== "mirror"){
       finalizeDraftShape();
     }
   });
