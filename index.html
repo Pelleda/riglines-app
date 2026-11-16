@@ -757,7 +757,7 @@
   </div>
   <input type="file" id="imageFileInput" accept="image/*" hidden>
   <div class="unit-toggle" title="Drawing aids">
-    <button type="button" class="unit-btn" id="snapBtn" title="While drawing with the Cable tool (P), snap clicks onto existing shapes' endpoints/corners" aria-pressed="false">Snap</button>
+    <button type="button" class="unit-btn" id="snapBtn" title="While drawing, snap onto existing shapes' endpoints (□), midpoints (△) and centers (○) — shown live as you move" aria-pressed="false">Snap</button>
     <button type="button" class="unit-btn" id="gridSnapBtn" title="Snap drawing, placing and dragging to a 0.1m grid" aria-pressed="false">Grid</button>
     <button type="button" class="unit-btn" id="totalsBtn" title="Show total cable length per color and part counts, drawn on the sheet" aria-pressed="false">Totals</button>
     <button type="button" class="unit-btn" id="workTableBtn" title="Work table — a staging shelf for master parts you can duplicate onto the drawing; staged parts are never counted in Totals or the Production sheet" aria-pressed="false">Work table</button>
@@ -4981,26 +4981,54 @@
     if (guideY != null) el("line", {x1:0, y1:guideY, x2:cw, y2:guideY, stroke:"var(--accent)", "stroke-width":1, "stroke-dasharray":"5 4", opacity:0.85, class:"ghost"}, overlayLayer);
   }
 
+  // Returns the nearest snappable point to `p` — an {x,y,kind} where kind is
+  // "endpoint" (a corner/vertex), "midpoint" (the middle of an edge) or
+  // "center" (a circle/ring/part's center), matching AutoCAD's OSNAP
+  // categories so the caller can show the matching glyph.
   function findSnapPoint(p){
     var best = null, bestDist = SNAP_RADIUS;
+    function consider(x, y, kind){
+      var d = Math.hypot(x-p.x, y-p.y);
+      if (d < bestDist){ bestDist = d; best = {x:x, y:y, kind:kind}; }
+    }
     state.shapes.forEach(function(s){
       var layer = layerFor(s.color);
       if ((layer && layer.visible === false) || isHiddenShape(s)) return;
-      var candidates = [];
-      if (s.type === "line" || s.type === "measure"){ candidates.push([s.x1,s.y1],[s.x2,s.y2]); }
-      else if (s.type === "polyline" || s.type === "triangle"){ candidates = s.points; }
-      else if (s.type === "rect" || s.type === "net" || s.type === "image"){
-        var b = boundsOf(s);
-        candidates = [[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]];
+      if (s.type === "line" || s.type === "measure"){
+        consider(s.x1, s.y1, "endpoint"); consider(s.x2, s.y2, "endpoint");
+        consider((s.x1+s.x2)/2, (s.y1+s.y2)/2, "midpoint");
+      } else if (s.type === "polyline" || s.type === "triangle"){
+        s.points.forEach(function(pt){ consider(pt[0], pt[1], "endpoint"); });
+        for (var i=0;i<s.points.length-1;i++){
+          var a=s.points[i], b=s.points[i+1];
+          consider((a[0]+b[0])/2, (a[1]+b[1])/2, "midpoint");
+        }
+      } else if (s.type === "rect" || s.type === "net" || s.type === "image"){
+        var b2 = boundsOf(s);
+        consider(b2.x, b2.y, "endpoint"); consider(b2.x+b2.w, b2.y, "endpoint");
+        consider(b2.x, b2.y+b2.h, "endpoint"); consider(b2.x+b2.w, b2.y+b2.h, "endpoint");
+        consider(b2.x+b2.w/2, b2.y, "midpoint"); consider(b2.x+b2.w/2, b2.y+b2.h, "midpoint");
+        consider(b2.x, b2.y+b2.h/2, "midpoint"); consider(b2.x+b2.w, b2.y+b2.h/2, "midpoint");
+        consider(b2.x+b2.w/2, b2.y+b2.h/2, "center");
+      } else if (s.type === "circle" || s.type === "ring"){
+        consider(s.cx, s.cy, "center");
+      } else if (s.type === "part" || s.type === "text" || s.type === "detail"){
+        consider(s.x, s.y, "center");
       }
-      else if (s.type === "circle" || s.type === "ring"){ candidates.push([s.cx,s.cy]); }
-      else if (s.type === "part" || s.type === "text" || s.type === "detail"){ candidates.push([s.x,s.y]); }
-      candidates.forEach(function(c){
-        var d = Math.hypot(c[0]-p.x, c[1]-p.y);
-        if (d < bestDist){ bestDist = d; best = {x:c[0], y:c[1]}; }
-      });
     });
     return best;
+  }
+  // AutoCAD-style OSNAP glyph: square = endpoint, triangle = midpoint,
+  // circle = center.
+  function drawSnapGlyph(parent, pt, kind){
+    var color = "var(--accent)";
+    if (kind === "midpoint"){
+      el("path", {d:"M "+(pt.x-6)+" "+(pt.y+5)+" L "+pt.x+" "+(pt.y-6)+" L "+(pt.x+6)+" "+(pt.y+5)+" Z", fill:"none", stroke:color, "stroke-width":1.5, class:"ghost"}, parent);
+    } else if (kind === "center"){
+      el("circle", {cx:pt.x, cy:pt.y, r:7, fill:"none", stroke:color, "stroke-width":1.5, class:"ghost"}, parent);
+    } else {
+      el("rect", {x:pt.x-5.5, y:pt.y-5.5, width:11, height:11, fill:"none", stroke:color, "stroke-width":1.5, class:"ghost"}, parent);
+    }
   }
   function finishPolyline(){
     if (!draft || draft.type !== "polyline" || draft.points.length < 2) return;
@@ -6031,13 +6059,16 @@
     // this click sets the end point and finalizes, Rhino-style (click, move to
     // aim, click or type a length — no need to hold the mouse button down).
     if (state.tool === "line" && draft && draft.type === "line" && draft.pendingClick){
-      draft.x2 = p.x; draft.y2 = p.y;
+      var endSnap = snapEnabled ? findSnapPoint(p) : null;
+      draft.x2 = endSnap ? endSnap.x : p.x; draft.y2 = endSnap ? endSnap.y : p.y;
       finalizeDraftShape();
       return;
     }
 
     // line / rect / circle / ring / callout box: drag-to-create
-    draft = {type: state.tool, x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+    var startSnap = (snapEnabled && (state.tool === "line" || state.tool === "rect" || state.tool === "circle" || state.tool === "ring" || state.tool === "net" || state.tool === "measure")) ? findSnapPoint(p) : null;
+    var startAt = startSnap || p;
+    draft = {type: state.tool, x1:startAt.x, y1:startAt.y, x2:startAt.x, y2:startAt.y};
     if (state.tool === "callout") draft.phase = "box";
     svg.setPointerCapture(evt.pointerId);
   });
@@ -6246,13 +6277,15 @@
       if (state.tool === "polyline" && snapEnabled){
         renderOverlayClear();
         var hoverSnap = findSnapPoint(p);
-        if (hoverSnap) el("circle", {cx:hoverSnap.x, cy:hoverSnap.y, r:7, fill:"none", stroke:"var(--accent)", "stroke-width":1.5, class:"ghost"}, overlayLayer);
+        if (hoverSnap) drawSnapGlyph(overlayLayer, hoverSnap, hoverSnap.kind);
       }
       return;
     }
     renderOverlayClear();
     if (draft.type === "line" || draft.type === "rect" || draft.type === "circle" || draft.type === "ring" || draft.type === "net" || draft.type === "measure" || draft.type === "calibrate" || (draft.type === "callout" && draft.phase === "box")){
-      draft.x2 = p.x; draft.y2 = p.y;
+      var dragSnap = (snapEnabled && !evt.shiftKey && (draft.type === "line" || draft.type === "rect" || draft.type === "circle" || draft.type === "ring" || draft.type === "net")) ? findSnapPoint(p) : null;
+      draft.x2 = dragSnap ? dragSnap.x : p.x; draft.y2 = dragSnap ? dragSnap.y : p.y;
+      if (dragSnap) drawSnapGlyph(overlayLayer, dragSnap, dragSnap.kind);
     }
     if (evt.shiftKey && (draft.type === "line" || (draft.type === "measure" && !draft.stick))){
       var orthoDx = draft.x2 - draft.x1, orthoDy = draft.y2 - draft.y1;
@@ -6340,7 +6373,7 @@
         plSnap = shiftAngleSnap(plLastPt, plPrevPt, p.x, p.y);
         if (plSnap) cursorAt = plSnap;
       }
-      if (snapNow) el("circle", {cx:snapNow.x, cy:snapNow.y, r:7, fill:"none", stroke:"var(--accent)", "stroke-width":1.5, class:"ghost"}, overlayLayer);
+      if (snapNow) drawSnapGlyph(overlayLayer, snapNow, snapNow.kind);
       draft.points.forEach(function(pt){
         el("circle", {cx:pt[0], cy:pt[1], r:4, fill:state.color, class:"ghost"}, overlayLayer);
       });
