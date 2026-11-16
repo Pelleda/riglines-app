@@ -827,7 +827,7 @@
   var pendingTemplate = null;
   var pendingRectKind = "wall";
   var RECT_KIND_LABELS = {frame:"Frame", wall:"Wall", rope:"Rope / cable"};
-  var pendingLineWidth = 2.4;
+  var pendingLineWidth = 1.2;
   var pendingLineDash = "solid";
   var LINE_WIDTH_OPTIONS = [["thin",1.2],["med",2.4],["thick",3.6]];
   var LINE_WIDTH_LABELS = {thin:"Thin", med:"Medium", thick:"Thick"};
@@ -1326,7 +1326,7 @@
       } else if (s.type === "polyline"){
         entPolyline(s.points, false);
       } else if (s.type === "text"){
-        entText(s.x, s.y, 3.5, s.text || "");
+        entText(s.x, s.y, 3.5 * (s.fontSize || 13) / 13, s.text || "");
       } else if (s.type === "callout"){
         entPolyline([[s.x,s.y],[s.x+s.w,s.y],[s.x+s.w,s.y+s.h],[s.x,s.y+s.h]], true);
         var edge = boxEdgePoint(s.x, s.y, s.w, s.h, s.lx, s.ly);
@@ -2498,11 +2498,16 @@
   // tail ends up pointing along the actual cable, regardless of how its
   // artwork happens to be drawn. Kinds not listed use the standard 0.
   var TAIL_PHI = { eyeend:180, eyeendSA:180, extthread:180, eyeendTB:-90 };
-  function placeAssemblyEnds(x1, y1, x2, y2){
+  // ax,ay = end A position; aTowardX,aTowardY = a point back along the cable FROM end A
+  // (i.e. its own adjacent segment's other point) — same pattern for end B. For a plain
+  // 2-point line each end's "toward" point is simply the other end; for a multi-segment
+  // cable run each end must face along its OWN last segment, not the straight line
+  // between the two far ends.
+  function placeAssemblyEnds(ax, ay, aTowardX, aTowardY, bx, by, bTowardX, bTowardY){
     var asm = state.assembly;
     if (!asm || !asm.enabled) return;
-    if (asm.endA) state.shapes.push({id:uid(), type:"part", partType:asm.endA, x:x1, y:y1, rot:angleTowards(x1,y1,x2,y2) - (TAIL_PHI[asm.endA]||0), color:asm.colorA, opacity:1});
-    if (asm.endB) state.shapes.push({id:uid(), type:"part", partType:asm.endB, x:x2, y:y2, rot:angleTowards(x2,y2,x1,y1) - (TAIL_PHI[asm.endB]||0), color:asm.colorB, opacity:1});
+    if (asm.endA) state.shapes.push({id:uid(), type:"part", partType:asm.endA, x:ax, y:ay, rot:angleTowards(ax,ay,aTowardX,aTowardY) - (TAIL_PHI[asm.endA]||0), color:asm.colorA, opacity:1});
+    if (asm.endB) state.shapes.push({id:uid(), type:"part", partType:asm.endB, x:bx, y:by, rot:angleTowards(bx,by,bTowardX,bTowardY) - (TAIL_PHI[asm.endB]||0), color:asm.colorB, opacity:1});
   }
 
   var partsGrid = document.getElementById("partsGrid");
@@ -3888,7 +3893,7 @@
     el("circle", {cx:x, cy:y, r:1.6, fill:color, class:"measure-line"}, parent);
   }
   function strokeWidthFor(s){
-    var w = (s.strokeWidth == null) ? 2.4 : s.strokeWidth;
+    var w = (s.strokeWidth == null) ? 1.2 : s.strokeWidth;
     return (s.dash === "dotted") ? Math.min(w, 1.3) : w;
   }
   function dashArrayFor(s){
@@ -4013,11 +4018,11 @@
         var rx=Math.min(s.x,s.x+s.w), ry=Math.min(s.y,s.y+s.h), rw=Math.abs(s.w), rh=Math.abs(s.h);
         var rk = s.rectKind || "wall";
         if (rk === "frame"){
-          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":4, "pointer-events":"all"}, g);
+          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":2.6, "pointer-events":"all"}, g);
         } else if (rk === "rope"){
-          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":2.4, class:"shape-line", "pointer-events":"all"}, g);
+          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":2, class:"shape-line", "pointer-events":"all"}, g);
         } else {
-          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":2, "pointer-events":"all"}, g);
+          el("rect", {x:rx, y:ry, width:rw, height:rh, fill:"none", stroke:s.color, "stroke-width":1.6, "pointer-events":"all"}, g);
         }
         var rectComputed = fmtLen(pxToM(rw)) + " × " + fmtLen(pxToM(rh)) + (rk === "frame" ? " (frame)" : rk === "rope" ? " (rope)" : "");
         var rectText = labelTextOverride(s, rectComputed);
@@ -4102,7 +4107,7 @@
       } else if (s.type === "measure"){
         drawMeasureShape(g, s, false);
       } else if (s.type === "text"){
-        var txt = el("text", {x:s.x, y:s.y, class:"part-label", fill:s.color, "font-size":"13"}, g);
+        var txt = el("text", {x:s.x, y:s.y, class:"part-label", fill:s.color, "font-size":(s.fontSize || 13)}, g);
         txt.textContent = s.text;
       } else if (s.type === "callout"){
         var cbx=Math.min(s.x,s.x+s.w), cby=Math.min(s.y,s.y+s.h), cbw=Math.abs(s.w), cbh=Math.abs(s.h);
@@ -4307,7 +4312,11 @@
     var plColor = (state.assembly.enabled && state.assembly.colorCable) ? state.assembly.colorCable : state.color;
     state.shapes.push({id:uid(), type:"polyline", points:draft.points, color:plColor, strokeWidth:pendingLineWidth, dash:pendingLineDash});
     var plPts = draft.points;
-    placeAssemblyEnds(plPts[0][0], plPts[0][1], plPts[plPts.length-1][0], plPts[plPts.length-1][1]);
+    var plLastI = plPts.length - 1;
+    placeAssemblyEnds(
+      plPts[0][0], plPts[0][1], plPts[1][0], plPts[1][1],
+      plPts[plLastI][0], plPts[plLastI][1], plPts[plLastI-1][0], plPts[plLastI-1][1]
+    );
     draft = null;
     renderOverlayClear();
     render();
@@ -4596,7 +4605,7 @@
       LINE_WIDTH_OPTIONS.forEach(function(pair){
         var tb = document.createElement("button"); tb.type = "button"; tb.className = "btn"; tb.style.flex = "1";
         tb.textContent = LINE_WIDTH_LABELS[pair[0]];
-        tb.setAttribute("aria-pressed", String((shape.strokeWidth == null ? 2.4 : shape.strokeWidth) === pair[1]));
+        tb.setAttribute("aria-pressed", String((shape.strokeWidth == null ? 1.2 : shape.strokeWidth) === pair[1]));
         tb.addEventListener("click", function(){
           pushUndo();
           shape.strokeWidth = pair[1];
@@ -4823,6 +4832,18 @@
         scheduleSave();
       });
       row.appendChild(lab); row.appendChild(inp); propsEl.appendChild(row);
+      var sizeRow = document.createElement("div"); sizeRow.className = "row";
+      var sizeLab = document.createElement("label"); sizeLab.textContent = "Size (pt)";
+      var sizeInp = document.createElement("input"); sizeInp.type = "number"; sizeInp.step = "1"; sizeInp.min = "6";
+      sizeInp.value = s.fontSize || 13;
+      sizeInp.addEventListener("input", function(){
+        var v = parseFloat(sizeInp.value) || 13;
+        s.fontSize = v;
+        var tEl = shapesLayer.querySelector('g[data-id="' + s.id + '"] text');
+        if (tEl) tEl.setAttribute("font-size", v);
+        scheduleSave();
+      });
+      sizeRow.appendChild(sizeLab); sizeRow.appendChild(sizeInp); propsEl.appendChild(sizeRow);
     } else if (s.type === "callout"){
       var coRow = document.createElement("div"); coRow.className = "row";
       var coLab = document.createElement("label"); coLab.textContent = "Label";
@@ -4883,7 +4904,7 @@
         pushUndo();
         var lineColor = (state.assembly.enabled && state.assembly.colorCable) ? state.assembly.colorCable : state.color;
         state.shapes.push({id:uid(), type:"line", x1:draft.x1,y1:draft.y1,x2:draft.x2,y2:draft.y2, color:lineColor, strokeWidth:pendingLineWidth, dash:pendingLineDash});
-        placeAssemblyEnds(draft.x1, draft.y1, draft.x2, draft.y2);
+        placeAssemblyEnds(draft.x1, draft.y1, draft.x2, draft.y2, draft.x2, draft.y2, draft.x1, draft.y1);
       }
     } else if (draft.type === "rect"){
       var w = draft.x2 - draft.x1, h = draft.y2 - draft.y1;
