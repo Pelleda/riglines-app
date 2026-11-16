@@ -101,6 +101,8 @@
   svg#stage.preview-mode .dim-leader{ display:none; }
   svg#stage.preview-mode .measure-line{ display:none; }
   .measure-label{ fill:var(--measure); font-weight:600; }
+  .label-bubble{ fill:var(--paper); stroke-width:1; }
+  svg#stage.preview-mode .label-bubble{ display:none; }
   svg#stage.preview-mode .measure-label{ display:none; }
   .totals-box{
     position:fixed; z-index:6; pointer-events:none;
@@ -276,6 +278,10 @@
   .handle-edge{ fill-opacity:0.25; }
   .handle[data-handle="t"], .handle[data-handle="b"]{ cursor:ns-resize; }
   .handle[data-handle="l"], .handle[data-handle="r"]{ cursor:ew-resize; }
+  .del-handle{ cursor:pointer; }
+  .del-handle circle{ fill:var(--danger); stroke:var(--panel); stroke-width:1.5; }
+  .del-handle:hover circle{ fill:var(--danger-hover); }
+  .del-handle text{ fill:var(--danger-ink); pointer-events:none; user-select:none; }
   .sel-outline{ fill:none; stroke:var(--accent); stroke-width:1; stroke-dasharray:4 3; }
   .ghost{ opacity:.5; pointer-events:none; }
   .marquee{ fill:var(--accent-soft); opacity:.55; stroke:var(--accent); stroke-width:1; stroke-dasharray:3 2; pointer-events:none; }
@@ -3960,6 +3966,24 @@
     return {ux:ux, uy:uy, nx:nx, ny:ny, D:D, over:over,
       p1x:x1+nx*D, p1y:y1+ny*D, p2x:x2+nx*D, p2y:y2+ny*D};
   }
+  // A rounded background behind a measure label, matching the "bubble" look
+  // of Autodesk Viewer's Distance tool — inserted right before the text node
+  // so it paints underneath, and copies the text's own rotate transform.
+  function addLabelBubble(parent, textEl){
+    if (!textEl) return null;
+    try{
+      var bb = textEl.getBBox();
+      if (!bb.width && !bb.height) return null;
+      var pad = 3;
+      var attrs = {x:bb.x-pad, y:bb.y-pad, width:bb.width+pad*2, height:bb.height+pad*2, rx:4, class:"label-bubble"};
+      var tr = textEl.getAttribute("transform");
+      if (tr) attrs.transform = tr;
+      var rect = el("rect", attrs, parent);
+      rect.style.stroke = textEl.style.fill || "";
+      parent.insertBefore(rect, textEl);
+      return rect;
+    }catch(e){ return null; }
+  }
   function drawSimpleMeasure(parent, s, ghost){
     var color = measureColorOf(s);
     if (!ghost) el("line", {x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2, stroke:"transparent", "stroke-width":14, "pointer-events":"stroke"}, parent);
@@ -3970,6 +3994,7 @@
       lbl.classList.add("measure-label");
       lbl.style.fill = color;
       if (ghost) lbl.classList.add("ghost");
+      addLabelBubble(parent, lbl);
     }
   }
   function drawPrecisionMeasure(parent, s, ghost){
@@ -3996,6 +4021,7 @@
       lbl.classList.add("measure-label");
       lbl.style.fill = color;
       if (ghost) lbl.classList.add("ghost");
+      addLabelBubble(parent, lbl);
     }
   }
   function drawMeasureShape(parent, s, ghost){
@@ -4210,6 +4236,16 @@
             [[s.x1,s.y1,"1"],[s.x2,s.y2,"2"]].forEach(function(h){
               el("circle", {cx:h[0], cy:h[1], r:5, class:"handle", "data-handle":h[2], "data-id":s.id}, handlesLayer);
             });
+            if (s.type === "measure"){
+              var delAnchor = labelAnchor(s);
+              if (delAnchor){
+                var delX = delAnchor.finalX - 22, delY = delAnchor.finalY - 4;
+                var delG = el("g", {class:"del-handle", "data-handle":"delete", "data-id":s.id}, handlesLayer);
+                el("circle", {cx:delX, cy:delY, r:8}, delG);
+                var delT = el("text", {x:delX, y:delY+3.5, "text-anchor":"middle", "font-size":"11", "font-weight":"700"}, delG);
+                delT.textContent = "×";
+              }
+            }
           } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "callout"){
             [["tl",b.x,b.y],["tr",b.x+b.w,b.y],["bl",b.x,b.y+b.h],["br",b.x+b.w,b.y+b.h]].forEach(function(h){
               el("circle", {cx:h[1], cy:h[2], r:5, class:"handle", "data-handle":h[0], "data-id":s.id}, handlesLayer);
@@ -5144,6 +5180,17 @@
       return;
     }
 
+    if (handleTarget && handleTarget.dataset.handle === "delete"){
+      pushUndo();
+      var delId = handleTarget.dataset.id;
+      state.shapes = state.shapes.filter(function(x){ return x.id !== delId; });
+      state.selectedIds = state.selectedIds.filter(function(id){ return id !== delId; });
+      if (state.selectedId === delId) state.selectedId = null;
+      renderOverlayClear();
+      render();
+      return;
+    }
+
     if (handleTarget){
       dragging = {mode:"handle", id: handleTarget.dataset.id, which: handleTarget.dataset.handle, startP:{x:p.x,y:p.y}, pushed:false};
       svg.setPointerCapture(evt.pointerId);
@@ -5272,6 +5319,21 @@
     }
 
     if (state.tool === "measure"){
+      if ((!draft || draft.type !== "measure") && !shapeTarget){
+        // Not over any line/element — drag to pan instead of starting a
+        // measurement from empty space, so navigating while measuring
+        // doesn't require switching tools.
+        var wrapRectM = canvasWrap.getBoundingClientRect();
+        panState = {
+          startX: evt.clientX, startY: evt.clientY,
+          scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
+          scaleX: (wrapRectM.width / (canvasWrap.clientWidth || wrapRectM.width)) || 1,
+          scaleY: (wrapRectM.height / (canvasWrap.clientHeight || wrapRectM.height)) || 1
+        };
+        svg.setPointerCapture(evt.pointerId);
+        canvasWrap.style.cursor = "grabbing";
+        return;
+      }
       if (!draft || draft.type !== "measure"){
         var stickSeg = findStickSegment(p, 14);
         var mStart = stickSeg ? {x:stickSeg.x, y:stickSeg.y} : p;
