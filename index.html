@@ -155,6 +155,17 @@
   }
   .hover-tip .hover-code{ font-family:"IBM Plex Mono",monospace; opacity:.75; margin-top:2px; }
   body.architect-mode #canvasWrap{ cursor:help; }
+  .magnifier-lens{
+    position:fixed; width:200px; height:200px; border-radius:50%;
+    border:2px solid var(--accent); box-shadow:var(--shadow); overflow:hidden;
+    pointer-events:none; z-index:50; background:var(--paper);
+  }
+  .magnifier-lens svg{ position:absolute; top:0; left:0; width:100%; height:100%; }
+  .magnifier-lens::after{
+    content:""; position:absolute; top:50%; left:50%; width:14px; height:14px;
+    transform:translate(-50%,-50%); border:1.5px solid var(--accent); border-radius:50%;
+    box-sizing:border-box; opacity:0.8;
+  }
   body.architect-mode svg#stage [data-id]{ cursor:help; }
   body.architect-mode .canvas-wrap{ outline:2px solid var(--accent); outline-offset:-2px; }
   body.architect-mode .tools,
@@ -673,6 +684,12 @@
         <div class="worktable-body" id="workTableBody"></div>
       </div>
       <div class="hover-tip" id="hoverTip" hidden></div>
+      <div class="magnifier-lens" id="magnifierLens" hidden>
+        <svg id="magnifierSvg" xmlns="http://www.w3.org/2000/svg">
+          <use id="magnifierBgUse" href="#bgRect"></use>
+          <use id="magnifierUse" href="#shapesLayer"></use>
+        </svg>
+      </div>
     </div>
    </div>
     <aside class="tools" id="tools"></aside>
@@ -743,6 +760,7 @@
     <button type="button" class="unit-btn" id="bringFrontBtn" title="Bring selection to front (Ctrl/Cmd+])">Front</button>
   </div>
   <span class="zoom-reset" id="zoomReset" title="Ctrl/Cmd + scroll or pinch to zoom the sheet. Click to reset to 100%.">zoom <b id="zoomLabel">100%</b></span>
+  <span class="hint" title="Hold Tab anywhere over the sheet for a magnifying loupe that follows the cursor, for precision clicking">🔍 hold Tab</span>
   <span>tool: <b id="toolName">select</b></span>
   <button type="button" class="current-color-btn" id="currentColorBtn" title="Current drawing color — click to change">
     <span class="current-color-swatch" id="currentColorSwatch"></span> color
@@ -5590,6 +5608,44 @@
   canvasWrap.addEventListener("gestureend", function(e){ e.preventDefault(); });
   canvasWrap.addEventListener("scroll", drawRulers);
   window.addEventListener("resize", drawRulers);
+  // ---------- magnifier loupe: hold Tab, lens follows the cursor ----------
+  var magnifierLens = document.getElementById("magnifierLens");
+  var magnifierSvg = document.getElementById("magnifierSvg");
+  var magnifierActive = false;
+  var lastMouseEvt = {clientX:0, clientY:0};
+  var MAGNIFIER_SIZE = 200, MAGNIFIER_FACTOR = 4;
+  function updateMagnifier(evt){
+    lastMouseEvt = evt;
+    if (!magnifierActive) return;
+    var p = toPoint(evt);
+    var ctm = svg.getScreenCTM();
+    var pxPerUnit = (ctm && ctm.a) || zoom || 1;
+    var V = MAGNIFIER_SIZE / (pxPerUnit * MAGNIFIER_FACTOR);
+    magnifierSvg.setAttribute("viewBox", (p.x - V/2) + " " + (p.y - V/2) + " " + V + " " + V);
+    var lx = evt.clientX + 24, ly = evt.clientY - MAGNIFIER_SIZE - 24;
+    lx = Math.min(Math.max(lx, 4), window.innerWidth - MAGNIFIER_SIZE - 4);
+    ly = Math.min(Math.max(ly, 4), window.innerHeight - MAGNIFIER_SIZE - 4);
+    magnifierLens.style.left = lx + "px";
+    magnifierLens.style.top = ly + "px";
+  }
+  function setMagnifierActive(on){
+    if (magnifierActive === on) return;
+    magnifierActive = on;
+    magnifierLens.hidden = !on;
+    if (on) updateMagnifier(lastMouseEvt);
+  }
+  window.addEventListener("keydown", function(e){
+    if (e.key !== "Tab" || e.repeat) return;
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    e.preventDefault();
+    setMagnifierActive(true);
+  });
+  window.addEventListener("keyup", function(e){
+    if (e.key === "Tab") setMagnifierActive(false);
+  });
+  window.addEventListener("blur", function(){ setMagnifierActive(false); });
+  window.addEventListener("mousemove", updateMagnifier);
   // Chromium can get canvasWrap's CSS-grid "1fr" track size permanently wrong
   // after an ancestor (sidebar/header/footer) flips display:none<->flex — it
   // sticks to a stale, too-wide value that survives reflows, resizes, even
