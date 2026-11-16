@@ -852,6 +852,7 @@
   var LINE_WIDTH_LABELS = {thin:"Thin", med:"Medium", thick:"Thick"};
   var LINE_DASH_OPTIONS = [["solid","Solid"],["dashed","Dashed"],["dotted","Dotted"]];
   var LABEL_OFFSET_DEFAULTS = {line:0.07, measure:0.07, polyline:0.10, rect:0.06, circle:0.06, ring:0.06, net:0.06};
+  var DETAIL_HALF = 35; // half-size (px units) of a detail-view box
   var pendingMeasureStyle = "simple";
   var MEASURE_STYLE_LABELS = {simple:"Simple", precision:"Architectural"};
   var pendingMeasureOffset = 0.3;
@@ -2662,7 +2663,7 @@
       if (s.type === "line" || s.type === "measure"){ s.x1+=dx; s.y1+=dy; s.x2+=dx; s.y2+=dy; }
       else if (s.type === "rect" || s.type === "net" || s.type === "image"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "circle" || s.type === "ring"){ s.cx+=dx; s.cy+=dy; }
-      else if (s.type === "part" || s.type === "text"){ s.x+=dx; s.y+=dy; }
+      else if (s.type === "part" || s.type === "text" || s.type === "detail"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "triangle" || s.type === "polyline"){ s.points = s.points.map(function(pt){ return [pt[0]+dx, pt[1]+dy]; }); }
       return s;
     });
@@ -3262,7 +3263,7 @@
       else if (s.type === "rect" || s.type === "net" || s.type === "image"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "callout"){ s.x+=dx; s.y+=dy; s.lx+=dx; s.ly+=dy; }
       else if (s.type === "circle" || s.type === "ring"){ s.cx+=dx; s.cy+=dy; }
-      else if (s.type === "part" || s.type === "text"){ s.x+=dx; s.y+=dy; }
+      else if (s.type === "part" || s.type === "text" || s.type === "detail"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "triangle" || s.type === "polyline"){ s.points = s.points.map(function(pt){ return [pt[0]+dx, pt[1]+dy]; }); }
     });
     render();
@@ -3428,7 +3429,7 @@
       else if (s.type === "rect" || s.type === "net" || s.type === "image"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "callout"){ s.x+=dx; s.y+=dy; s.lx+=dx; s.ly+=dy; }
       else if (s.type === "circle" || s.type === "ring"){ s.cx+=dx; s.cy+=dy; }
-      else if (s.type === "part" || s.type === "text"){ s.x+=dx; s.y+=dy; }
+      else if (s.type === "part" || s.type === "text" || s.type === "detail"){ s.x+=dx; s.y+=dy; }
       else if (s.type === "triangle" || s.type === "polyline"){ s.points = s.points.map(function(pt){ return [pt[0]+dx, pt[1]+dy]; }); }
       state.shapes.push(s);
       newIds.push(s.id);
@@ -3518,7 +3519,7 @@
     else if (s.type === "rect" || s.type === "net" || s.type === "image"){ s.x+=dx; s.y+=dy; }
     else if (s.type === "callout"){ s.x+=dx; s.y+=dy; s.lx+=dx; s.ly+=dy; }
     else if (s.type === "circle" || s.type === "ring"){ s.cx+=dx; s.cy+=dy; }
-    else if (s.type === "part" || s.type === "text"){ s.x+=dx; s.y+=dy; }
+    else if (s.type === "part" || s.type === "text" || s.type === "detail"){ s.x+=dx; s.y+=dy; }
     else if (s.type === "triangle" || s.type === "polyline"){ s.points = s.points.map(function(pt){ return [pt[0]+dx, pt[1]+dy]; }); }
   }
   function alignSelection(mode){
@@ -3598,7 +3599,7 @@
       } else if (sh.type === "circle" || sh.type === "ring"){
         var cc = rotatePointAround(o.cx, o.cy, pivot.x, pivot.y, angRad);
         sh.cx = cc[0]; sh.cy = cc[1];
-      } else if (sh.type === "part" || sh.type === "text"){
+      } else if (sh.type === "part" || sh.type === "text" || sh.type === "detail"){
         var pp = rotatePointAround(o.x, o.y, pivot.x, pivot.y, angRad);
         sh.x = pp[0]; sh.y = pp[1];
         if (sh.type === "part"){ sh.rot = (((o.rot||0) + deltaDeg) % 360 + 360) % 360; }
@@ -4163,6 +4164,31 @@
         var coTxt = el("text", {x:s.lx + (s.lx>=coEdge.x?7:-7), y:s.ly+4, class:"part-label", fill:s.color,
           "font-size":"14", "font-weight":"700", "text-anchor": s.lx>=coEdge.x ? "start" : "end"}, g);
         coTxt.textContent = s.text;
+      } else if (s.type === "detail"){
+        var dSrc = findShape(s.sourceId);
+        var dbx = s.x-DETAIL_HALF, dby = s.y-DETAIL_HALF, dbw = DETAIL_HALF*2, dbh = DETAIL_HALF*2;
+        if (dSrc){
+          var dEdge = boxEdgePoint(dbx, dby, dbw, dbh, dSrc.x, dSrc.y);
+          el("line", {x1:dEdge.x, y1:dEdge.y, x2:dSrc.x, y2:dSrc.y, stroke:s.color, "stroke-width":1, "stroke-dasharray":"3 2", class:"dim-leader"}, g);
+          el("circle", {cx:dSrc.x, cy:dSrc.y, r:3, fill:s.color}, g);
+        }
+        el("rect", {x:dbx, y:dby, width:dbw, height:dbh, fill:"var(--paper)", stroke:"none", "pointer-events":"all"}, g);
+        if (dSrc && dSrc.type === "part"){
+          var dClipId = "detailClip" + s.id;
+          var dClip = el("clipPath", {id:dClipId}, g);
+          el("rect", {x:dbx, y:dby, width:dbw, height:dbh}, dClip);
+          var dClipped = el("g", {"clip-path":"url(#" + dClipId + ")"}, g);
+          var dwrap2 = el("g", {transform:"translate(" + s.x + "," + s.y + ") scale(" + (s.scale||3) + ")"}, dClipped);
+          dwrap2.appendChild(buildPart(dSrc.partType, dSrc.color));
+          el("rect", {x:dbx, y:dby, width:dbw, height:dbh, fill:"none", stroke:s.color, "stroke-width":1.4}, g);
+          var dLbl = el("text", {x:s.x, y:dby+dbh+12, class:"part-label", "text-anchor":"middle", "font-size":"9"}, g);
+          dLbl.textContent = shapeTypeLabel(dSrc);
+        } else {
+          el("rect", {x:dbx, y:dby, width:dbw, height:dbh, fill:"none", stroke:s.color, "stroke-width":1.4}, g);
+          var dMiss = el("text", {x:s.x, y:s.y, class:"part-label", "text-anchor":"middle", "font-size":"10"}, g);
+          dMiss.style.fill = "var(--ink-faint)";
+          dMiss.textContent = "(source deleted)";
+        }
       } else if (s.type === "part"){
         var partSc = (s.scale||1) * partScaleFactor();
         el("circle", {cx:s.x, cy:s.y, r:18*partSc, fill:"transparent", "pointer-events":"all"}, g);
@@ -4258,6 +4284,7 @@
     }
     if (s.type==="part"){ var psc=(s.scale||1)*partScaleFactor(); return {x:s.x-18*psc,y:s.y-18*psc,w:36*psc,h:36*psc}; }
     if (s.type==="text") return {x:s.x-2,y:s.y-14,w:120,h:18};
+    if (s.type==="detail") return {x:s.x-DETAIL_HALF,y:s.y-DETAIL_HALF,w:DETAIL_HALF*2,h:DETAIL_HALF*2};
     return {x:0,y:0,w:0,h:0};
   }
 
@@ -4343,7 +4370,7 @@
         candidates = [[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]];
       }
       else if (s.type === "circle" || s.type === "ring"){ candidates.push([s.cx,s.cy]); }
-      else if (s.type === "part" || s.type === "text"){ candidates.push([s.x,s.y]); }
+      else if (s.type === "part" || s.type === "text" || s.type === "detail"){ candidates.push([s.x,s.y]); }
       candidates.forEach(function(c){
         var d = Math.hypot(c[0]-p.x, c[1]-p.y);
         if (d < bestDist){ bestDist = d; best = {x:c[0], y:c[1]}; }
@@ -4934,6 +4961,24 @@
       var p = document.createElement("p"); p.className = "empty";
       p.textContent = "Fitting symbols are schematic, not to scale. Drag the corner handle to resize. Drag the rotate handle above it to turn in 15° steps, or type an exact degree above.";
       propsEl.appendChild(p);
+      var detailBtn = document.createElement("button"); detailBtn.type = "button"; detailBtn.className = "btn";
+      detailBtn.style.marginTop = "4px"; detailBtn.textContent = "📐 Add detail view";
+      detailBtn.title = "Place a small enlarged reference drawing of this fitting elsewhere on the sheet, connected by a leader line";
+      detailBtn.addEventListener("click", function(){
+        pushUndo();
+        var nd = {id:uid(), type:"detail", sourceId:s.id, x:s.x + 90, y:s.y - 90, scale:3, color:s.color};
+        state.shapes.push(nd);
+        selectOnly(nd.id);
+        render();
+        renderProps();
+      });
+      propsEl.appendChild(detailBtn);
+    } else if (s.type === "detail"){
+      var dSrcInfo = findShape(s.sourceId);
+      var dInfoP = document.createElement("p"); dInfoP.className = "empty";
+      dInfoP.textContent = dSrcInfo ? ("Detail view of: " + shapeTypeLabel(dSrcInfo) + ". Drag the box to reposition — the leader line follows automatically.") : "The fitting this pointed to was deleted.";
+      propsEl.appendChild(dInfoP);
+      numRow("Magnification (×)", s.scale||3, function(v){ s.scale = Math.max(1, Math.min(10, v)); }, "0.5");
     } else if (s.type === "triangle"){
       var note = document.createElement("p"); note.className = "empty"; note.textContent = "Drag a corner to resize.";
       propsEl.appendChild(note);
@@ -5314,7 +5359,7 @@
         else if (sh.type === "rect" || sh.type === "net"){ sh.x=o.x+dxg; sh.y=o.y+dyg; }
         else if (sh.type === "callout"){ sh.x=o.x+dxg; sh.y=o.y+dyg; sh.lx=o.lx+dxg; sh.ly=o.ly+dyg; }
         else if (sh.type === "circle" || sh.type === "ring"){ sh.cx=o.cx+dxg; sh.cy=o.cy+dyg; }
-        else if (sh.type === "part" || sh.type === "text"){ sh.x=o.x+dxg; sh.y=o.y+dyg; }
+        else if (sh.type === "part" || sh.type === "text" || sh.type === "detail"){ sh.x=o.x+dxg; sh.y=o.y+dyg; }
         else if (sh.type === "triangle" || sh.type === "polyline"){ sh.points = o.points.map(function(pt){ return [pt[0]+dxg, pt[1]+dyg]; }); }
       });
       render();
@@ -5408,7 +5453,7 @@
         else if (s.type === "rect" || s.type === "net" || s.type === "image"){ s.x=o.x+dx2; s.y=o.y+dy2; }
         else if (s.type === "callout"){ s.x=o.x+dx2; s.y=o.y+dy2; s.lx=o.lx+dx2; s.ly=o.ly+dy2; }
         else if (s.type === "circle" || s.type === "ring"){ s.cx=o.cx+dx2; s.cy=o.cy+dy2; }
-        else if (s.type === "part" || s.type === "text"){ s.x=o.x+dx2; s.y=o.y+dy2; }
+        else if (s.type === "part" || s.type === "text" || s.type === "detail"){ s.x=o.x+dx2; s.y=o.y+dy2; }
         else if (s.type === "triangle" || s.type === "polyline"){ s.points = o.points.map(function(pt){ return [pt[0]+dx2, pt[1]+dy2]; }); }
         render();
         renderOverlayClear();
