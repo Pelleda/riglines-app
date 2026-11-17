@@ -2412,6 +2412,11 @@
       el("path", Object.assign({d:"M -5 -17 L 0 -22 L 5 -17 Z", fill:color}, s), g);
       el("rect", Object.assign({x:-4, y:-17, width:8, height:6, rx:1}, s), g);
       drawThreadRod(g, s, 0, -11, 14);
+    } else if (kind === "domenut"){
+      // dome nut: caps a thread rod that has passed through a structural member from the
+      // far side — a short thread stub into a rounded acorn-nut cap.
+      drawThreadRod(g, s, 0, 16, 4);
+      el("path", Object.assign({d:"M -5 4 L -5 -2 A 5 5 0 0 1 5 -2 L 5 4 Z", fill:color, "stroke-width":1}, s), g);
     } else if (kind === "loopSA"){
       el("path", Object.assign({d:"M 0 -4 C 9 -8 9 -18 0 -18 C -9 -18 -9 -8 0 -4", fill:"none"}, s), g);
       el("rect", Object.assign({x:-6, y:-4, width:12, height:8, rx:1}, s), g);
@@ -2424,12 +2429,12 @@
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:-2}, s), g);
       el("path", Object.assign({d:"M -6 -2 L -6 -8 A 6 6 0 0 1 6 -8 L 6 -2 Z"}, s), g);
     } else if (kind === "jakob30866"){
-      // end-stop with countersunk head 90°, swaged — a bold, chunky T: solid shaft into a
-      // thick flat cap (per the reference sketch), not a thin-line T and not a dome/cone.
+      // end-stop with countersunk head 90°, swaged — a mushroom-T: solid stem into a
+      // rounded dome cap (not a flat rectangular bar, not a cone).
       drawRopeTail(g, s, 0, 16, 0, 1);
-      el("line", Object.assign({x1:0, y1:16, x2:0, y2:-8}, s), g);
-      el("rect", Object.assign({x:-2.6, y:-13, width:5.2, height:7, rx:1, fill:color, "stroke-width":1}, s), g);
-      el("rect", Object.assign({x:-10, y:-16, width:20, height:5.5, rx:1.5, fill:color, "stroke-width":1}, s), g);
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:-7}, s), g);
+      el("rect", Object.assign({x:-2, y:-10, width:4, height:4.5, fill:color, "stroke-width":1}, s), g);
+      el("path", Object.assign({d:"M -8 -10 A 8 7 0 0 1 8 -10 Z", fill:color, "stroke-width":1}, s), g);
     } else if (kind === "variball"){
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:4}, s), g);
       el("path", Object.assign({d:"M -7 4 A 7 5 0 0 0 7 4"}, s), g);
@@ -2669,6 +2674,7 @@
     {kind:"extthread", label:"External thread end", cat:"Threaded"},
     {kind:"jakob30850", label:"External thread end, RH, swaged (M8) — Jakob 30850", cat:"Threaded"},
     {kind:"jakob30909", label:"External thread end, LH self-assembly (LT2) — Jakob 30909", cat:"Threaded"},
+    {kind:"domenut", label:"Dome nut (caps thread through a member)", cat:"Threaded"},
     {kind:"variball", label:"End fitting Variball", cat:"Other end fittings"},
     {kind:"radiushead", label:"Radius head rope end", cat:"Other end fittings"},
     {kind:"turnbuckle", label:"Turnbuckle", cat:"Tensioning"},
