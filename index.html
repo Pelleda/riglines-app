@@ -2397,19 +2397,10 @@
     } else if (kind === "eyeendThread"){
       el("circle", Object.assign({cx:0, cy:6}, s, {r:8}), g);
       drawThreadRod(g, s, 0, -2, -16);
-    } else if (kind === "extthread" || kind === "jakob30850"){
+    } else if (kind === "extthread"){
       drawRopeTail(g, s, 0, -17, 0, -1);
       el("rect", Object.assign({x:-3, y:-17, width:6, height:8, rx:1}, s), g);
       drawThreadRod(g, s, 0, -9, 14);
-    } else if (kind === "jakob30909"){
-      // external thread end, self-assembly: a bolted clamp body (tick marks beside it)
-      // in place of the swaged sleeve, same thread rod and rope tail as jakob30850/extthread.
-      drawRopeTail(g, s, 0, -17, 0, -1);
-      el("rect", Object.assign({x:-4, y:-17, width:8, height:9, rx:1}, s), g);
-      el("line", Object.assign({x1:5, y1:-15, x2:7, y2:-15}, s), g);
-      el("line", Object.assign({x1:6, y1:-16, x2:6, y2:-14}, s), g);
-      el("line", Object.assign({x1:5, y1:-10, x2:7, y2:-10}, s), g);
-      drawThreadRod(g, s, 0, -8, 14);
     } else if (kind === "loopSA"){
       el("path", Object.assign({d:"M 0 -4 C 9 -8 9 -18 0 -18 C -9 -18 -9 -8 0 -4", fill:"none"}, s), g);
       el("rect", Object.assign({x:-6, y:-4, width:12, height:8, rx:1}, s), g);
@@ -2422,11 +2413,12 @@
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:-2}, s), g);
       el("path", Object.assign({d:"M -6 -2 L -6 -8 A 6 6 0 0 1 6 -8 L 6 -2 Z"}, s), g);
     } else if (kind === "jakob30866"){
-      // end-stop with a countersunk 90°-included-angle head (flat chamfered cone), not the
-      // rounded dome of the generic "endstop" — matches the real Jakob countersunk fitting.
+      // end-stop with countersunk head 90°, swaged — a T-shaped stop: the rod runs straight
+      // up into a flat crossbar (the countersunk head sits flush against the structure from
+      // the far side), not a dome or a cone.
       drawRopeTail(g, s, 0, 16, 0, 1);
-      el("line", Object.assign({x1:0, y1:16, x2:0, y2:-2}, s), g);
-      el("path", Object.assign({d:"M -6 -2 L -6 -6 L 0 -14 L 6 -6 L 6 -2 Z"}, s), g);
+      el("line", Object.assign({x1:0, y1:16, x2:0, y2:-10}, s), g);
+      el("line", Object.assign({x1:-9, y1:-10, x2:9, y2:-10}, s), g);
     } else if (kind === "variball"){
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:4}, s), g);
       el("path", Object.assign({d:"M -7 4 A 7 5 0 0 0 7 4"}, s), g);
@@ -2664,8 +2656,6 @@
     {kind:"eyeendThread", label:"Eye-end with thread", cat:"Threaded"},
     {kind:"toggle", label:"Toggle", cat:"Threaded"},
     {kind:"extthread", label:"External thread end", cat:"Threaded"},
-    {kind:"jakob30850", label:"External thread end, RH, swaged — Jakob 30850", cat:"Threaded"},
-    {kind:"jakob30909", label:"External thread end, LH self-assembly (LT2) — Jakob 30909", cat:"Threaded"},
     {kind:"variball", label:"End fitting Variball", cat:"Other end fittings"},
     {kind:"radiushead", label:"Radius head rope end", cat:"Other end fittings"},
     {kind:"turnbuckle", label:"Turnbuckle", cat:"Tensioning"},
