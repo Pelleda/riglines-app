@@ -2409,14 +2409,15 @@
       // (no open fork) narrowing to a collar, then the threaded rod, per the reference
       // sketch's cone + collar + hatched-rod symbol for the horizontal cable's tensioning end.
       drawRopeTail(g, s, 0, -17, 0, -1);
-      el("path", Object.assign({d:"M -5 -17 L 0 -22 L 5 -17 Z", fill:color}, s), g);
+      el("path", Object.assign({}, s, {d:"M -5 -17 L 0 -22 L 5 -17 Z", fill:color}), g);
       el("rect", Object.assign({x:-4, y:-17, width:8, height:6, rx:1}, s), g);
       drawThreadRod(g, s, 0, -11, 14);
     } else if (kind === "domenut"){
       // dome nut: caps a thread rod that has passed through a structural member from the
-      // far side — a short thread stub into a rounded acorn-nut cap.
-      drawThreadRod(g, s, 0, 16, 4);
-      el("path", Object.assign({d:"M -5 4 L -5 -2 A 5 5 0 0 1 5 -2 L 5 4 Z", fill:color, "stroke-width":1}, s), g);
+      // far side. Reads outward from the member: thread stub first (near), then the nut's
+      // flat face (joining the thread), then its round dome bulging further out (far).
+      drawThreadRod(g, s, 0, 0, 7);
+      el("path", Object.assign({}, s, {d:"M -5 7 A 5 6 0 0 0 5 7 Z", fill:color, "stroke-width":1}), g);
     } else if (kind === "loopSA"){
       el("path", Object.assign({d:"M 0 -4 C 9 -8 9 -18 0 -18 C -9 -18 -9 -8 0 -4", fill:"none"}, s), g);
       el("rect", Object.assign({x:-6, y:-4, width:12, height:8, rx:1}, s), g);
@@ -2433,8 +2434,8 @@
       // rounded dome cap (not a flat rectangular bar, not a cone).
       drawRopeTail(g, s, 0, 16, 0, 1);
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:-7}, s), g);
-      el("rect", Object.assign({x:-2, y:-10, width:4, height:4.5, fill:color, "stroke-width":1}, s), g);
-      el("path", Object.assign({d:"M -8 -10 A 8 7 0 0 1 8 -10 Z", fill:color, "stroke-width":1}, s), g);
+      el("rect", Object.assign({}, s, {x:-2, y:-10, width:4, height:4.5, fill:color, "stroke-width":1}), g);
+      el("path", Object.assign({}, s, {d:"M -8 -10 A 8 7 0 0 1 8 -10 Z", fill:color, "stroke-width":1}), g);
     } else if (kind === "variball"){
       el("line", Object.assign({x1:0, y1:16, x2:0, y2:4}, s), g);
       el("path", Object.assign({d:"M -7 4 A 7 5 0 0 0 7 4"}, s), g);
