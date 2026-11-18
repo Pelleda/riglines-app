@@ -569,6 +569,7 @@
 
 <header>
   <h1><img src="riglines-icon.png" alt="" class="logo-icon"> Riglines</h1>
+  <a href="/" class="btn" id="backToCatalogBtn" hidden style="display:inline-block;text-decoration:none" title="Back to the Riglines splash screen (choose CAD drawing or Catalog)">← Catalog</a>
 
   <div class="hdr-menu" id="fileMenu">
     <button class="btn" type="button" id="fileMenuBtn" aria-haspopup="true" aria-expanded="false" title="New, open, save, import and export">File ▾</button>
@@ -2285,7 +2286,8 @@
   // PWA can never reach those, so the probe below just fails harmlessly and
   // the button stays hidden there). ----------
   var sendToCatalogBtn = document.getElementById("sendToCatalogBtn");
-  fetch("/api/projects").then(function(r){ if (r.ok) sendToCatalogBtn.hidden = false; }).catch(function(){});
+  var backToCatalogBtn = document.getElementById("backToCatalogBtn");
+  fetch("/api/projects").then(function(r){ if (r.ok){ sendToCatalogBtn.hidden = false; backToCatalogBtn.hidden = false; } }).catch(function(){});
   sendToCatalogBtn.addEventListener("click", function(){ closeAllPopovers(); showSendToCatalogModal(); });
   function showSendToCatalogModal(){
     var html =
