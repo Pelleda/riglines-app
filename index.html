@@ -7520,6 +7520,14 @@
   }
   window.addEventListener("resize", syncCanvasWrapSize);
   syncCanvasWrapSize();
+  // Google Fonts loads with display:swap, so the first sync above runs against
+  // fallback-font metrics; once IBM Plex Sans swaps in, header/tab-strip/toolbar
+  // text reflows and changes height, but nothing else re-measures the canvas area
+  // — resync once the real font is in and once more after full load (icons/images).
+  if (window.document && document.fonts && document.fonts.ready){
+    document.fonts.ready.then(syncCanvasWrapSize).catch(function(){});
+  }
+  window.addEventListener("load", syncCanvasWrapSize);
   document.getElementById("zoomReset").addEventListener("click", function(){
     zoom = 1; applyZoom();
   });
