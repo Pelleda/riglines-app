@@ -2289,146 +2289,295 @@
   var backToCatalogBtn = document.getElementById("backToCatalogBtn");
   fetch("/api/projects").then(function(r){ if (r.ok){ sendToCatalogBtn.hidden = false; backToCatalogBtn.hidden = false; } }).catch(function(){});
   sendToCatalogBtn.addEventListener("click", function(){ closeAllPopovers(); showSendToCatalogModal(); });
+
+  // Rasterizes the current sheet the same way Export's PDF button does (see
+  // exportDrawing/exportPDF above) and returns a PDF Blob, so an attachment
+  // people open from the project page shows the drawing itself instead of
+  // raw JSON. Falls back to null (caller sends the .riglines.json alone) if
+  // jsPDF didn't load.
+  function buildDrawingPdfBlob(callback){
+    if (!(window.jspdf && window.jspdf.jsPDF)){ callback(null); return; }
+    var svgString = buildExportSVGString(null);
+    svgStringToImage(svgString, function(img){
+      var w = svg.width.baseVal.value, h = svg.height.baseVal.value;
+      var scale = Math.max(1, Math.min(2, 6000 / Math.max(w, h)));
+      var canvas = document.createElement("canvas");
+      canvas.width = w * scale; canvas.height = h * scale;
+      var ctx = canvas.getContext("2d");
+      var paperColor = getComputedStyle(document.documentElement).getPropertyValue("--paper").trim() || "#ffffff";
+      ctx.fillStyle = paperColor; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      var jpegDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      try{
+        var doc = new window.jspdf.jsPDF({
+          orientation: canvas.width >= canvas.height ? "landscape" : "portrait",
+          unit: "px", format: [canvas.width, canvas.height], compress: true
+        });
+        doc.addImage(jpegDataUrl, "JPEG", 0, 0, canvas.width, canvas.height);
+        callback(doc.output("blob"));
+      }catch(err){ callback(null); }
+    });
+  }
+  function blobToBase64(blob, cb){
+    var reader = new FileReader();
+    reader.onloadend = function(){ cb(String(reader.result).split(",")[1] || ""); };
+    reader.readAsDataURL(blob);
+  }
+
+  // A short walkthrough rather than one busy form: choose new-vs-existing
+  // project first (so there's never a silent default to whichever project
+  // happens to load first), then -- only if there are coded parts to send --
+  // which Construction they belong to, then one review-and-send screen that
+  // names the exact target before anything is written.
   function showSendToCatalogModal(){
-    var html =
-      '<h3>Send to Catalog</h3>' +
-      '<p class="modal-msg">Attach this drawing to a catalog project, or transfer its Architect-mode coded parts straight into that project’s BOQ.</p>' +
-      '<div class="row"><label>Project</label><select class="modal-input" id="stcProjectSel"><option>Loading…</option></select></div>' +
-      '<div id="stcNewProjectFields" hidden>' +
+    var boqSections = computeBoqSections();
+    var st = {targetMode: null, existingSlug: null, existingProj: null,
+              newProject: {number: "", name: "", location: "", contact: ""},
+              constructionIndex: null, constructionNewName: null, constructionChosen: false};
+    var projectsData = [];
+    var projectsPromise = fetch("/api/projects").then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; });
+    projectsPromise.then(function(list){ projectsData = list; });
+
+    var m = openModal('<p class="modal-msg">Loading…</p>');
+    m.modal.style.maxWidth = "440px";
+    function setBody(html){ m.modal.innerHTML = html; }
+    function currentTabName(){ return (tabs[activeTabIdx] && tabs[activeTabIdx].name) || "Drawing"; }
+    function showErr(msg){ var e = m.modal.querySelector("#stcErr"); if (e){ e.textContent = msg; e.style.display = "block"; } }
+
+    function stepChoose(){
+      setBody(
+        '<h3>Send to Catalog</h3>' +
+        '<p class="modal-msg">Attach this drawing to a catalog project, transfer its Architect-mode coded parts into that project’s BOQ, or both.</p>' +
+        '<div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:4px">' +
+          '<button type="button" class="btn primary" data-act="new" style="text-align:left">Create a new project from this drawing</button>' +
+          '<button type="button" class="btn" data-act="existing" style="text-align:left">Add to an existing project</button>' +
+        '</div>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="cancel">Cancel</button></div>'
+      );
+      m.modal.querySelector('[data-act="cancel"]').addEventListener("click", m.close);
+      m.modal.querySelector('[data-act="new"]').addEventListener("click", function(){ st.targetMode = "new"; stepNewProject(); });
+      m.modal.querySelector('[data-act="existing"]').addEventListener("click", function(){ st.targetMode = "existing"; stepExistingProject(); });
+    }
+
+    function stepNewProject(){
+      setBody(
+        '<h3>New project</h3>' +
         '<div class="row"><label>Number</label><input type="text" class="modal-input" id="stcNewNumber"></div>' +
         '<div class="row"><label>Name</label><input type="text" class="modal-input" id="stcNewName"></div>' +
         '<div class="row"><label>Location</label><input type="text" class="modal-input" id="stcNewLocation"></div>' +
         '<div class="row"><label>Contact</label><input type="text" class="modal-input" id="stcNewContact"></div>' +
-      '</div>' +
-      '<div class="row" id="stcConstructionRow" hidden><label>Construction</label><select class="modal-input" id="stcConstructionSel"></select></div>' +
-      '<div id="stcNewConstructionFields" hidden>' +
-        '<div class="row"><label>New construction name</label><input type="text" class="modal-input" id="stcNewConstructionName"></div>' +
-      '</div>' +
-      '<div id="stcPreview"></div>' +
-      '<div class="modal-actions">' +
-        '<button type="button" class="btn" data-act="attachment">Save as attachment</button>' +
-        '<button type="button" class="btn primary" data-act="parts">Transfer parts to BOQ</button>' +
-        '<button type="button" class="btn" data-act="close">Close</button>' +
-      '</div>';
-    var m = openModal(html);
-    m.modal.style.maxWidth = "440px";
-    m.modal.querySelector('[data-act="close"]').addEventListener("click", m.close);
-
-    // Computed once, up front: shapes don't change while this modal is
-    // open. One row per BOQ Section this transfer will create -- one per
-    // drawing Section ("Mark as Section" on a selection), plus a trailing
-    // catch-all for any coded shape that isn't in one.
-    var boqSections = computeBoqSections();
-    var preview = m.modal.querySelector("#stcPreview");
-    var partsBtn = m.modal.querySelector('[data-act="parts"]');
-    if (!boqSections.length){
-      var none = document.createElement("p"); none.className = "modal-msg";
-      none.textContent = "No coded parts to transfer — assign Jakob codes in Architect mode first.";
-      preview.appendChild(none);
-      partsBtn.disabled = true;
-    } else {
-      var label = document.createElement("div"); label.className = "modal-msg";
-      label.textContent = "Will create " + boqSections.length + " section" + (boqSections.length === 1 ? "" : "s") + ":";
-      preview.appendChild(label);
-      var list = document.createElement("ul"); list.style.cssText = "margin:4px 0 0; padding-left:18px; font-size:var(--fs-xs); color:var(--ink-soft);";
-      boqSections.forEach(function(sec){
-        var li = document.createElement("li");
-        li.textContent = sec.name + " — " + sec.parts.length + " code" + (sec.parts.length === 1 ? "" : "s");
-        list.appendChild(li);
+        '<p class="modal-msg" id="stcErr" style="color:var(--danger);display:none"></p>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="back">Back</button><button type="button" class="btn primary" data-act="next">Next</button></div>'
+      );
+      m.modal.querySelector("#stcNewNumber").value = st.newProject.number;
+      m.modal.querySelector("#stcNewName").value = st.newProject.name || currentTabName();
+      m.modal.querySelector("#stcNewLocation").value = st.newProject.location;
+      m.modal.querySelector("#stcNewContact").value = st.newProject.contact;
+      m.modal.querySelector('[data-act="back"]').addEventListener("click", stepChoose);
+      m.modal.querySelector('[data-act="next"]').addEventListener("click", function(){
+        var name = m.modal.querySelector("#stcNewName").value.trim();
+        if (!name){ showErr("Enter a project name."); return; }
+        st.newProject = {
+          number: m.modal.querySelector("#stcNewNumber").value.trim(),
+          name: name,
+          location: m.modal.querySelector("#stcNewLocation").value.trim(),
+          contact: m.modal.querySelector("#stcNewContact").value.trim()
+        };
+        if (boqSections.length) stepConstruction(); else stepReview();
       });
-      preview.appendChild(list);
     }
 
-    var projectSel = m.modal.querySelector("#stcProjectSel");
-    var newProjectFields = m.modal.querySelector("#stcNewProjectFields");
-    var constructionRow = m.modal.querySelector("#stcConstructionRow");
-    var constructionSel = m.modal.querySelector("#stcConstructionSel");
-    var newConstructionFields = m.modal.querySelector("#stcNewConstructionFields");
-    var projectsData = [];
+    function stepExistingProject(){
+      setBody(
+        '<h3>Add to existing project</h3>' +
+        '<div class="row"><label>Project</label><select class="modal-input" id="stcProjectSel"><option value="">Loading…</option></select></div>' +
+        '<p class="modal-msg" id="stcErr" style="color:var(--danger);display:none"></p>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="back">Back</button><button type="button" class="btn primary" data-act="next">Next</button></div>'
+      );
+      var sel = m.modal.querySelector("#stcProjectSel");
+      m.modal.querySelector('[data-act="back"]').addEventListener("click", stepChoose);
+      projectsPromise.then(function(list){
+        sel.innerHTML = "";
+        var ph = document.createElement("option"); ph.value = ""; ph.disabled = true; ph.selected = true;
+        ph.textContent = list.length ? "— choose a project —" : "No projects yet — go back and create one";
+        sel.appendChild(ph);
+        list.forEach(function(p, i){
+          var o = document.createElement("option"); o.value = String(i);
+          o.textContent = (p.number ? p.number + " — " : "") + p.name;
+          if (st.existingSlug && p.slug === st.existingSlug) o.selected = true;
+          sel.appendChild(o);
+        });
+      });
+      m.modal.querySelector('[data-act="next"]').addEventListener("click", function(){
+        if (sel.value === ""){ showErr("Choose a project."); return; }
+        st.existingSlug = projectsData[sel.value].slug;
+        st.existingProj = projectsData[sel.value];
+        if (boqSections.length) stepConstruction(); else stepReview();
+      });
+    }
 
-    function populateConstructions(){
-      constructionSel.innerHTML = "";
-      var proj = projectsData[projectSel.value];
-      if (proj){
+    function stepConstruction(){
+      var proj = st.existingProj;
+      var hasExisting = !!(proj && proj.constructions && proj.constructions.length);
+      setBody(
+        '<h3>Construction</h3>' +
+        '<p class="modal-msg">Which construction do this drawing’s coded parts belong to?</p>' +
+        '<div class="row"><label>Construction</label><select class="modal-input" id="stcConstructionSel"></select></div>' +
+        '<div id="stcNewConstructionFields"><div class="row"><label>Name</label><input type="text" class="modal-input" id="stcNewConstructionName"></div></div>' +
+        '<p class="modal-msg" id="stcErr" style="color:var(--danger);display:none"></p>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="back">Back</button><button type="button" class="btn primary" data-act="next">Next</button></div>'
+      );
+      var sel = m.modal.querySelector("#stcConstructionSel");
+      var newFields = m.modal.querySelector("#stcNewConstructionFields");
+      var newNameInput = m.modal.querySelector("#stcNewConstructionName");
+      newNameInput.value = st.constructionNewName || currentTabName();
+      if (hasExisting){
+        var ph = document.createElement("option"); ph.value = ""; ph.disabled = true; ph.selected = true;
+        ph.textContent = "— choose a construction —";
+        sel.appendChild(ph);
         proj.constructions.forEach(function(c, i){
-          var o = document.createElement("option");
-          o.value = String(i); o.textContent = c.name || ("Construction " + (i + 1));
-          constructionSel.appendChild(o);
+          var o = document.createElement("option"); o.value = String(i); o.textContent = c.name || ("Construction " + (i + 1));
+          if (st.constructionIndex === i) o.selected = true;
+          sel.appendChild(o);
         });
       }
       var newOpt = document.createElement("option"); newOpt.value = "__new__"; newOpt.textContent = "+ New construction";
-      constructionSel.appendChild(newOpt);
-      constructionRow.hidden = false;
-      newConstructionFields.hidden = constructionSel.value !== "__new__";
-    }
-
-    fetch("/api/projects").then(function(r){ return r.json(); }).then(function(list){
-      projectsData = list;
-      projectSel.innerHTML = "";
-      list.forEach(function(p, i){
-        var o = document.createElement("option");
-        o.value = String(i); o.textContent = (p.number ? p.number + " — " : "") + p.name;
-        projectSel.appendChild(o);
+      sel.appendChild(newOpt);
+      // Only auto-select "+ New construction": when there's nothing else to pick from,
+      // or the user already chose "new" on an earlier visit to this step (Back then
+      // forward again). Otherwise the placeholder stays selected -- an existing
+      // project with real constructions always forces an explicit pick, the same
+      // fix as the project-picker step, so a transfer never lands somewhere nobody chose.
+      if (!hasExisting || (st.constructionChosen && st.constructionIndex === null)) sel.value = "__new__";
+      newFields.hidden = sel.value !== "__new__";
+      sel.addEventListener("change", function(){ newFields.hidden = sel.value !== "__new__"; });
+      m.modal.querySelector('[data-act="back"]').addEventListener("click", function(){
+        if (st.targetMode === "new") stepNewProject(); else stepExistingProject();
       });
-      var newOpt = document.createElement("option"); newOpt.value = "__new__"; newOpt.textContent = "+ New project";
-      projectSel.appendChild(newOpt);
-      newProjectFields.hidden = projectSel.value !== "__new__";
-      populateConstructions();
-    }).catch(function(){
-      projectSel.innerHTML = '<option value="__new__">+ New project</option>';
-      newProjectFields.hidden = false;
-      populateConstructions();
-    });
-
-    projectSel.addEventListener("change", function(){
-      newProjectFields.hidden = projectSel.value !== "__new__";
-      populateConstructions();
-    });
-    constructionSel.addEventListener("change", function(){
-      newConstructionFields.hidden = constructionSel.value !== "__new__";
-    });
-
-    function buildTarget(){
-      if (projectSel.value === "__new__"){
-        return {new: {
-          number: m.modal.querySelector("#stcNewNumber").value,
-          name: m.modal.querySelector("#stcNewName").value,
-          location: m.modal.querySelector("#stcNewLocation").value,
-          contact: m.modal.querySelector("#stcNewContact").value
-        }};
-      }
-      return {slug: projectsData[projectSel.value].slug};
+      m.modal.querySelector('[data-act="next"]').addEventListener("click", function(){
+        if (sel.value === ""){ showErr("Choose a construction."); return; }
+        st.constructionChosen = true;
+        if (sel.value === "__new__"){
+          st.constructionIndex = null;
+          st.constructionNewName = newNameInput.value.trim() || currentTabName();
+        } else {
+          st.constructionIndex = parseInt(sel.value, 10);
+          st.constructionNewName = null;
+        }
+        stepReview();
+      });
     }
-    function buildConstruction(tabName){
-      if (constructionSel.value === "__new__"){
-        return {new: {name: m.modal.querySelector("#stcNewConstructionName").value || tabName}};
-      }
-      return {index: parseInt(constructionSel.value, 10)};
+
+    function targetLabel(){
+      if (st.targetMode === "new") return st.newProject.name + " (new project)";
+      return (st.existingProj.number ? st.existingProj.number + " — " : "") + st.existingProj.name;
     }
-    function currentTabName(){ return (tabs[activeTabIdx] && tabs[activeTabIdx].name) || "Drawing"; }
+    function constructionLabel(){
+      if (!boqSections.length) return null;
+      if (st.constructionIndex !== null) return st.existingProj.constructions[st.constructionIndex].name || ("Construction " + (st.constructionIndex + 1));
+      return st.constructionNewName + " (new)";
+    }
 
-    m.modal.querySelector('[data-act="attachment"]').addEventListener("click", function(){
-      var filename = currentTabName().replace(/[^a-z0-9_\- ]/gi, "_") + ".riglines.json";
-      fetch("/api/transfer-drawing", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({mode: "attachment", target: buildTarget(), filename: filename, content: JSON.stringify(serializeState())})
-      }).then(function(r){ return r.json(); }).then(function(res){
-        if (res.ok){ notify("Drawing attached to the project."); m.close(); }
-        else notify("Couldn't attach the drawing: " + (res.error || "unknown error"));
-      }).catch(function(){ notify("Couldn't reach the catalog app."); });
-    });
+    function stepReview(){
+      setBody(
+        '<h3>Review & send</h3>' +
+        '<p class="modal-msg" id="stcTarget"></p>' +
+        '<div id="stcPreview"></div>' +
+        '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:var(--fs-sm)">' +
+          '<input type="checkbox" id="stcAttachChk" checked style="margin-top:3px">' +
+          '<span>Attach this drawing to the project (a PDF you can open and look at, plus the original file so it can be reopened here later)</span>' +
+        '</label>' +
+        '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:var(--fs-sm)">' +
+          '<input type="checkbox" id="stcPartsChk" style="margin-top:3px">' +
+          '<span id="stcPartsText"></span>' +
+        '</label>' +
+        '<p class="modal-msg" id="stcErr" style="color:var(--danger);display:none;margin-top:10px"></p>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="back">Back</button><button type="button" class="btn primary" data-act="send">Send to Catalog</button></div>'
+      );
+      var cLabel = constructionLabel();
+      m.modal.querySelector("#stcTarget").textContent = "Target: " + targetLabel() + (cLabel ? " → " + cLabel : "");
 
-    partsBtn.addEventListener("click", function(){
-      if (!boqSections.length) return;
-      var tabName = currentTabName();
-      fetch("/api/transfer-drawing", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({mode: "parts", target: buildTarget(), construction: buildConstruction(tabName), sections: boqSections})
-      }).then(function(r){ return r.json(); }).then(function(res){
-        if (res.ok){ notify(boqSections.length + " section" + (boqSections.length === 1 ? "" : "s") + " transferred to the catalog project."); m.close(); }
-        else notify("Couldn't transfer parts: " + (res.error || "unknown error"));
-      }).catch(function(){ notify("Couldn't reach the catalog app."); });
-    });
+      var preview = m.modal.querySelector("#stcPreview");
+      var partsChk = m.modal.querySelector("#stcPartsChk");
+      var partsText = m.modal.querySelector("#stcPartsText");
+      if (boqSections.length){
+        var list = document.createElement("ul"); list.style.cssText = "margin:4px 0 0; padding-left:18px; font-size:var(--fs-xs); color:var(--ink-soft);";
+        boqSections.forEach(function(sec){
+          var li = document.createElement("li");
+          li.textContent = sec.name + " — " + sec.parts.length + " code" + (sec.parts.length === 1 ? "" : "s");
+          list.appendChild(li);
+        });
+        preview.appendChild(list);
+        partsChk.checked = true;
+        partsText.textContent = "Transfer " + boqSections.length + " section" + (boqSections.length === 1 ? "" : "s") + " of coded parts to the BOQ";
+      } else {
+        var none = document.createElement("p"); none.className = "modal-msg";
+        none.textContent = "No coded parts to transfer — assign Jakob codes in Architect mode first.";
+        preview.appendChild(none);
+        partsChk.checked = false; partsChk.disabled = true;
+        partsText.textContent = "Transfer coded parts to BOQ (none to transfer)";
+      }
+
+      m.modal.querySelector('[data-act="back"]').addEventListener("click", function(){
+        if (boqSections.length) stepConstruction();
+        else if (st.targetMode === "new") stepNewProject(); else stepExistingProject();
+      });
+      m.modal.querySelector('[data-act="send"]').addEventListener("click", doSend);
+    }
+
+    function buildTarget(){ return st.targetMode === "new" ? {new: st.newProject} : {slug: st.existingSlug}; }
+    function buildConstruction(){
+      return st.constructionIndex !== null ? {index: st.constructionIndex} : {new: {name: st.constructionNewName}};
+    }
+
+    function doSend(){
+      var attach = m.modal.querySelector("#stcAttachChk").checked;
+      var parts = m.modal.querySelector("#stcPartsChk").checked && boqSections.length > 0;
+      if (!attach && !parts){ showErr("Choose at least one of the two options above."); return; }
+      var sendBtn = m.modal.querySelector('[data-act="send"]');
+      sendBtn.disabled = true; sendBtn.textContent = "Sending…";
+      var filenameBase = (currentTabName().replace(/[^a-z0-9_\- ]/gi, "_") || "drawing");
+
+      function postPayload(attachments){
+        var payload = {target: buildTarget()};
+        if (attachments) payload.attachments = attachments;
+        if (parts){ payload.construction = buildConstruction(); payload.sections = boqSections; }
+        fetch("/api/transfer-drawing", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        }).then(function(r){ return r.json(); }).then(function(res){
+          if (res.ok) stepDone(res);
+          else { sendBtn.disabled = false; sendBtn.textContent = "Send to Catalog"; showErr("Couldn't send: " + (res.error || "unknown error")); }
+        }).catch(function(){
+          sendBtn.disabled = false; sendBtn.textContent = "Send to Catalog"; showErr("Couldn't reach the catalog app.");
+        });
+      }
+
+      if (!attach){ postPayload(null); return; }
+      var jsonAttachment = {filename: filenameBase + ".riglines.json", content: JSON.stringify(serializeState())};
+      buildDrawingPdfBlob(function(pdfBlob){
+        if (!pdfBlob){ postPayload([jsonAttachment]); return; }
+        blobToBase64(pdfBlob, function(b64){
+          postPayload([{filename: filenameBase + ".pdf", content: b64, encoding: "base64"}, jsonAttachment]);
+        });
+      });
+    }
+
+    function stepDone(res){
+      var bits = [];
+      if (res.attached) bits.push(res.attached + " file" + (res.attached === 1 ? "" : "s") + " attached");
+      if (res.sections_created) bits.push(res.sections_created + " section" + (res.sections_created === 1 ? "" : "s") + " transferred to BOQ");
+      setBody(
+        '<h3>Done</h3>' +
+        '<p class="modal-msg" id="stcDoneMsg"></p>' +
+        '<div class="modal-actions"><button type="button" class="btn" data-act="close">Close</button><a class="btn primary" id="stcOpenLink" target="_blank" style="display:inline-block;text-decoration:none">Open project</a></div>'
+      );
+      m.modal.querySelector("#stcDoneMsg").textContent = (bits.join(" and ") || "Sent") + " — " + targetLabel() + ".";
+      m.modal.querySelector("#stcOpenLink").href = res.url;
+      m.modal.querySelector('[data-act="close"]').addEventListener("click", m.close);
+    }
+
+    stepChoose();
   }
   function openProjectFile(file){
     var reader = new FileReader();
