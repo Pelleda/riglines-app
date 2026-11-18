@@ -2570,7 +2570,7 @@
       setBody(
         '<h3>Done</h3>' +
         '<p class="modal-msg" id="stcDoneMsg"></p>' +
-        '<div class="modal-actions"><button type="button" class="btn" data-act="close">Close</button><a class="btn primary" id="stcOpenLink" target="_blank" style="display:inline-block;text-decoration:none">Open project</a></div>'
+        '<div class="modal-actions"><button type="button" class="btn" data-act="close">Close</button><a class="btn primary" id="stcOpenLink" style="display:inline-block;text-decoration:none">Open project</a></div>'
       );
       m.modal.querySelector("#stcDoneMsg").textContent = (bits.join(" and ") || "Sent") + " — " + targetLabel() + ".";
       m.modal.querySelector("#stcOpenLink").href = res.url;
