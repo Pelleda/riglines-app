@@ -243,6 +243,7 @@
   .tab-btn{ display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; background:var(--panel-2); color:var(--ink); padding:5px 8px; font:inherit; font-size:var(--fs-sm); cursor:pointer; white-space:nowrap; max-width:160px; }
   .tab-btn.active{ background:var(--panel); border-color:var(--accent); color:var(--accent); }
   .tab-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tab-rename-input{ font:inherit; font-size:var(--fs-sm); color:inherit; background:var(--panel); border:1px solid var(--accent); border-radius:3px; padding:0 3px; width:110px; max-width:140px; }
   .tab-close{ opacity:.6; font-size:14px; line-height:1; padding:0 2px; border-radius:3px; }
   .tab-close:hover{ opacity:1; background:var(--accent-soft); }
   .tab-add{ border:1px solid var(--border); border-bottom:none; border-radius:var(--radius) var(--radius) 0 0; background:var(--panel-2); color:var(--ink); width:28px; cursor:pointer; font-weight:700; }
@@ -2152,6 +2153,8 @@
       var label = document.createElement("span");
       label.className = "tab-label";
       label.textContent = t.name;
+      label.title = "Double-click to rename";
+      label.addEventListener("dblclick", function(e){ e.stopPropagation(); startRenameTab(i); });
       b.appendChild(label);
       if (tabs.length > 1){
         var x = document.createElement("span");
@@ -2171,6 +2174,39 @@
     add.textContent = "+";
     add.addEventListener("click", addTab);
     strip.appendChild(add);
+  }
+  function startRenameTab(idx){
+    if (!tabs[idx]) return;
+    var strip = document.getElementById("tabStrip");
+    var btn = strip && strip.children[idx];
+    var label = btn && btn.querySelector(".tab-label");
+    if (!label) return;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "tab-rename-input";
+    input.value = tabs[idx].name;
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+    var done = false;
+    function commit(){
+      if (done) return; done = true;
+      var v = input.value.trim();
+      if (v) tabs[idx].name = v;
+      renderTabStrip();
+      scheduleSave();
+    }
+    function cancel(){
+      if (done) return; done = true;
+      renderTabStrip();
+    }
+    input.addEventListener("keydown", function(e){
+      if (e.key === "Enter"){ e.preventDefault(); commit(); }
+      else if (e.key === "Escape"){ e.preventDefault(); cancel(); }
+    });
+    input.addEventListener("blur", commit);
+    input.addEventListener("click", function(e){ e.stopPropagation(); });
+    input.addEventListener("dblclick", function(e){ e.stopPropagation(); });
   }
   function seedExample(){
     state.shapes = [
