@@ -5271,11 +5271,27 @@
   }
   function drawMesh(parent, id, x, y, w, h, color, cellPx){
     cellPx = Math.max(cellPx, 4);
-    var patId = "netpat-" + id;
-    var pat = el("pattern", {id:patId, width:cellPx, height:cellPx, patternUnits:"userSpaceOnUse", patternTransform:"rotate(45)"}, parent);
-    el("line", {x1:0, y1:0, x2:0, y2:cellPx, stroke:color, "stroke-width":1}, pat);
-    el("line", {x1:0, y1:0, x2:cellPx, y2:0, stroke:color, "stroke-width":1}, pat);
-    el("rect", {x:x, y:y, width:w, height:h, fill:"url(#"+patId+")", stroke:color, "stroke-width":2, "pointer-events":"all"}, parent);
+    // Crosshatch drawn as real clipped line geometry, not an SVG <pattern> fill — patterns
+    // (especially with patternTransform) can rasterize corrupted when many of them appear
+    // in a large SVG rendered via Image()+canvas, which is how PNG/PDF export works. Every
+    // other repeating fill in this app (drawHatchFill) already avoids <pattern> for the
+    // same reason; this brings drawMesh in line with that.
+    el("rect", {x:x, y:y, width:w, height:h, fill:"transparent", stroke:"none", "pointer-events":"all"}, parent);
+    var clipId = "netclip-" + id;
+    var clip = el("clipPath", {id:clipId}, parent);
+    el("rect", {x:x, y:y, width:w, height:h}, clip);
+    var g = el("g", {"clip-path":"url(#" + clipId + ")"}, parent);
+    var pad = w + h + cellPx;
+    var step = cellPx * Math.SQRT2;
+    var kMinA = (y - pad) - (x + pad), kMaxA = (y + pad) - (x - pad);
+    for (var k = Math.floor(kMinA/step)*step; k <= kMaxA; k += step){
+      el("line", {x1:x-pad, y1:(x-pad)+k, x2:x+pad, y2:(x+pad)+k, stroke:color, "stroke-width":1}, g);
+    }
+    var kMinB = (x - pad) + (y - pad), kMaxB = (x + pad) + (y + pad);
+    for (var k2 = Math.floor(kMinB/step)*step; k2 <= kMaxB; k2 += step){
+      el("line", {x1:x-pad, y1:k2-(x-pad), x2:x+pad, y2:k2-(x+pad), stroke:color, "stroke-width":1}, g);
+    }
+    el("rect", {x:x, y:y, width:w, height:h, fill:"none", stroke:color, "stroke-width":2}, parent);
   }
   function pruneOrphanGroups(){
     var used = {};
