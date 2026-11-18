@@ -7139,21 +7139,11 @@
     }
 
     if (state.tool === "measure"){
-      if ((!draft || draft.type !== "measure") && !shapeTarget){
-        // Not over any line/element — drag to pan instead of starting a
-        // measurement from empty space, so navigating while measuring
-        // doesn't require switching tools.
-        var wrapRectM = canvasWrap.getBoundingClientRect();
-        panState = {
-          startX: evt.clientX, startY: evt.clientY,
-          scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
-          scaleX: (wrapRectM.width / (canvasWrap.clientWidth || wrapRectM.width)) || 1,
-          scaleY: (wrapRectM.height / (canvasWrap.clientHeight || wrapRectM.height)) || 1
-        };
-        svg.setPointerCapture(evt.pointerId);
-        canvasWrap.style.cursor = "grabbing";
-        return;
-      }
+      // Plain left-click always starts/continues the measurement, even over
+      // empty space -- panning while measuring already works without
+      // switching tools via middle-click or spacebar+drag (handled above,
+      // tool-independent), so stealing a bare click here to pan instead only
+      // made clicking on blank canvas silently do nothing.
       if (!draft || draft.type !== "measure"){
         var stickSeg = findStickSegment(p, 14);
         var mStart = stickSeg ? {x:stickSeg.x, y:stickSeg.y} : p;
@@ -7169,18 +7159,8 @@
     }
 
     if (state.tool === "calibrate"){
-      if ((!draft || draft.type !== "calibrate") && !shapeTarget){
-        var wrapRectCal = canvasWrap.getBoundingClientRect();
-        panState = {
-          startX: evt.clientX, startY: evt.clientY,
-          scrollLeft: canvasWrap.scrollLeft, scrollTop: canvasWrap.scrollTop,
-          scaleX: (wrapRectCal.width / (canvasWrap.clientWidth || wrapRectCal.width)) || 1,
-          scaleY: (wrapRectCal.height / (canvasWrap.clientHeight || wrapRectCal.height)) || 1
-        };
-        svg.setPointerCapture(evt.pointerId);
-        canvasWrap.style.cursor = "grabbing";
-        return;
-      }
+      // Same fix as Measure just above: a plain click always sets a point,
+      // even over empty space; use middle-click/spacebar+drag to pan.
       if (!draft || draft.type !== "calibrate"){
         var calStick = findStickSegment(p, 14);
         var calStart = calStick ? {x:calStick.x, y:calStick.y} : p;
