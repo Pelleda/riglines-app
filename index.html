@@ -2302,6 +2302,7 @@
       '<div id="stcNewConstructionFields" hidden>' +
         '<div class="row"><label>New construction name</label><input type="text" class="modal-input" id="stcNewConstructionName"></div>' +
       '</div>' +
+      '<div id="stcPreview"></div>' +
       '<div class="modal-actions">' +
         '<button type="button" class="btn" data-act="attachment">Save as attachment</button>' +
         '<button type="button" class="btn primary" data-act="parts">Transfer parts to BOQ</button>' +
@@ -2310,6 +2311,31 @@
     var m = openModal(html);
     m.modal.style.maxWidth = "440px";
     m.modal.querySelector('[data-act="close"]').addEventListener("click", m.close);
+
+    // Computed once, up front: shapes don't change while this modal is
+    // open. One row per BOQ Section this transfer will create -- one per
+    // drawing Section ("Mark as Section" on a selection), plus a trailing
+    // catch-all for any coded shape that isn't in one.
+    var boqSections = computeBoqSections();
+    var preview = m.modal.querySelector("#stcPreview");
+    var partsBtn = m.modal.querySelector('[data-act="parts"]');
+    if (!boqSections.length){
+      var none = document.createElement("p"); none.className = "modal-msg";
+      none.textContent = "No coded parts to transfer — assign Jakob codes in Architect mode first.";
+      preview.appendChild(none);
+      partsBtn.disabled = true;
+    } else {
+      var label = document.createElement("div"); label.className = "modal-msg";
+      label.textContent = "Will create " + boqSections.length + " section" + (boqSections.length === 1 ? "" : "s") + ":";
+      preview.appendChild(label);
+      var list = document.createElement("ul"); list.style.cssText = "margin:4px 0 0; padding-left:18px; font-size:var(--fs-xs); color:var(--ink-soft);";
+      boqSections.forEach(function(sec){
+        var li = document.createElement("li");
+        li.textContent = sec.name + " — " + sec.parts.length + " code" + (sec.parts.length === 1 ? "" : "s");
+        list.appendChild(li);
+      });
+      preview.appendChild(list);
+    }
 
     var projectSel = m.modal.querySelector("#stcProjectSel");
     var newProjectFields = m.modal.querySelector("#stcNewProjectFields");
@@ -2390,15 +2416,14 @@
       }).catch(function(){ notify("Couldn't reach the catalog app."); });
     });
 
-    m.modal.querySelector('[data-act="parts"]').addEventListener("click", function(){
-      var parts = computeBoqParts();
-      if (!parts.length){ notify("No coded parts to transfer — assign Jakob codes in Architect mode first."); return; }
+    partsBtn.addEventListener("click", function(){
+      if (!boqSections.length) return;
       var tabName = currentTabName();
       fetch("/api/transfer-drawing", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({mode: "parts", target: buildTarget(), construction: buildConstruction(tabName), sectionName: tabName, parts: parts})
+        body: JSON.stringify({mode: "parts", target: buildTarget(), construction: buildConstruction(tabName), sections: boqSections})
       }).then(function(r){ return r.json(); }).then(function(res){
-        if (res.ok){ notify(parts.length + " part" + (parts.length === 1 ? "" : "s") + " transferred to the catalog project."); m.close(); }
+        if (res.ok){ notify(boqSections.length + " section" + (boqSections.length === 1 ? "" : "s") + " transferred to the catalog project."); m.close(); }
         else notify("Couldn't transfer parts: " + (res.error || "unknown error"));
       }).catch(function(){ notify("Couldn't reach the catalog app."); });
     });
@@ -3730,37 +3755,60 @@
   function codeKey(s){ return codeFamily(s) + "|" + s.color; }
   function codeOf(s){ return state.itemCodes[codeKey(s)] || ""; }
   function setCodeFor(s, code){ state.itemCodes[codeKey(s)] = code; }
-  // Used by "Send to Catalog" (see sendToCatalog.* below): the same
-  // Architect-mode codes (state.itemCodes, keyed by codeKey) the Production
-  // sheet already surfaces, reduced to one {code, qty} row per code for a
-  // catalog BOQ Section. Quantity is in whatever unit that code is actually
-  // sold in -- length (m) for ropes, area (m2) for net panels, a plain
-  // instance count for fittings/frames/rings -- not a shape count across
-  // the board, unlike the on-screen Totals panel's "Parts" list.
-  function computeBoqParts(){
-    var byCode = {};
+  // Used by "Send to Catalog": the quantity one shape contributes to a BOQ
+  // row, in whatever unit its code is actually sold in -- length (m) for
+  // ropes/cable runs, area (m2) for net panels, a plain instance count for
+  // fittings/frames/rings -- not a shape count across the board, unlike the
+  // on-screen Totals panel's "Parts" list.
+  function boqQtyOf(s){
+    if (s.type === "line"){ return pxToM(Math.hypot(s.x2-s.x1, s.y2-s.y1)); }
+    if (s.type === "polyline"){
+      var plen = 0;
+      for (var pi=0; pi<s.points.length-1; pi++) plen += Math.hypot(s.points[pi+1][0]-s.points[pi][0], s.points[pi+1][1]-s.points[pi][1]);
+      return pxToM(plen);
+    }
+    if (s.type === "rect" && s.rectKind === "rope"){ return pxToM(2 * (Math.abs(s.w) + Math.abs(s.h))); }
+    if (s.type === "net"){ return pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h)); }
+    return 1;
+  }
+  function boqRowsFromCodeMap(byCode){
+    return Object.keys(byCode).map(function(code){ return {code: code, qty: Math.round(byCode[code] * 100) / 100}; });
+  }
+  // One BOQ Section per drawing Section ("Mark as Section" in the
+  // Properties panel -- already how you tag a group of shapes for
+  // manufacturing/documentation, reused here as-is for "which BOQ section
+  // does this part belong to"), in the order sections were created, plus a
+  // trailing catch-all named after the current tab for any coded shape
+  // that isn't in a Section -- so an un-sectioned drawing still transfers
+  // as the single Section it used to.
+  function computeBoqSections(){
+    var bySectionId = {}, order = [], unsectioned = {};
     state.shapes.forEach(function(s){
       if (!isArchitectTaggable(s)) return;
       var layer = layerFor(s.color);
       if ((layer && layer.visible === false) || isHiddenShape(s)) return;
       var code = codeOf(s);
       if (!code) return;
-      var qty = 0;
-      if (s.type === "line"){ qty = pxToM(Math.hypot(s.x2-s.x1, s.y2-s.y1)); }
-      else if (s.type === "polyline"){
-        var plen = 0;
-        for (var pi=0; pi<s.points.length-1; pi++) plen += Math.hypot(s.points[pi+1][0]-s.points[pi][0], s.points[pi+1][1]-s.points[pi][1]);
-        qty = pxToM(plen);
-      } else if (s.type === "rect" && s.rectKind === "rope"){
-        qty = pxToM(2 * (Math.abs(s.w) + Math.abs(s.h)));
-      } else if (s.type === "net"){
-        qty = pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
+      var qty = boqQtyOf(s);
+      if (s.sectionId){
+        if (!bySectionId[s.sectionId]){
+          var sec = sectionOf(s);
+          bySectionId[s.sectionId] = {name: (sec && sec.name) || "Section", byCode: {}};
+          order.push(s.sectionId);
+        }
+        var bucket = bySectionId[s.sectionId].byCode;
+        bucket[code] = (bucket[code] || 0) + qty;
       } else {
-        qty = 1;
+        unsectioned[code] = (unsectioned[code] || 0) + qty;
       }
-      byCode[code] = (byCode[code] || 0) + qty;
     });
-    return Object.keys(byCode).map(function(code){ return {code: code, qty: Math.round(byCode[code] * 100) / 100}; });
+    var result = order.map(function(id){
+      return {name: bySectionId[id].name, parts: boqRowsFromCodeMap(bySectionId[id].byCode)};
+    });
+    if (Object.keys(unsectioned).length){
+      result.push({name: (tabs[activeTabIdx] && tabs[activeTabIdx].name) || "Drawing", parts: boqRowsFromCodeMap(unsectioned)});
+    }
+    return result;
   }
   function codeScopeLabel(s){
     if (s.type === "part") return "every \"" + shapeTypeLabel(s) + "\" fitting in this color";

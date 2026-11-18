@@ -1,4 +1,4 @@
-var CACHE = "riglines-v53";
+var CACHE = "riglines-v54";
 var CORE = [
   "./",
   "./index.html",
