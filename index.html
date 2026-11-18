@@ -580,6 +580,7 @@
       <button type="button" class="btn tpl-btn" id="importDxfBtn" title="Import a .dxf file (LINE/LWPOLYLINE/POLYLINE/CIRCLE/ARC/TEXT) onto this sheet. Binary .dwg isn't supported — save as DXF first.">Import DXF…</button>
       <button type="button" class="btn tpl-btn" id="exportBtn" title="Export the drawing as an image or SVG code">Export…</button>
       <button type="button" class="btn menu-toggle" id="productionBtn" aria-pressed="false" title="Production sheet: every fitting kind and rope/panel color, each with one editable Jakob code">Production sheet</button>
+      <button type="button" class="btn tpl-btn" id="sendToCatalogBtn" hidden title="Attach this drawing to a Riglines catalog project, or transfer its coded parts straight into that project's BOQ">Send to Catalog…</button>
       <div class="hdr-popover-sep"></div>
       <button type="button" class="btn danger tpl-btn" id="clearBtn">Clear canvas</button>
     </div>
@@ -2278,6 +2279,130 @@
       }
     });
   }
+  // ---------- Send to Catalog (only when embedded in the local Riglines
+  // catalog app, which serves this same index.html at /drawing/ and exposes
+  // /api/projects + /api/transfer-drawing same-origin; the public standalone
+  // PWA can never reach those, so the probe below just fails harmlessly and
+  // the button stays hidden there). ----------
+  var sendToCatalogBtn = document.getElementById("sendToCatalogBtn");
+  fetch("/api/projects").then(function(r){ if (r.ok) sendToCatalogBtn.hidden = false; }).catch(function(){});
+  sendToCatalogBtn.addEventListener("click", function(){ closeAllPopovers(); showSendToCatalogModal(); });
+  function showSendToCatalogModal(){
+    var html =
+      '<h3>Send to Catalog</h3>' +
+      '<p class="modal-msg">Attach this drawing to a catalog project, or transfer its Architect-mode coded parts straight into that project’s BOQ.</p>' +
+      '<div class="row"><label>Project</label><select class="modal-input" id="stcProjectSel"><option>Loading…</option></select></div>' +
+      '<div id="stcNewProjectFields" hidden>' +
+        '<div class="row"><label>Number</label><input type="text" class="modal-input" id="stcNewNumber"></div>' +
+        '<div class="row"><label>Name</label><input type="text" class="modal-input" id="stcNewName"></div>' +
+        '<div class="row"><label>Location</label><input type="text" class="modal-input" id="stcNewLocation"></div>' +
+        '<div class="row"><label>Contact</label><input type="text" class="modal-input" id="stcNewContact"></div>' +
+      '</div>' +
+      '<div class="row" id="stcConstructionRow" hidden><label>Construction</label><select class="modal-input" id="stcConstructionSel"></select></div>' +
+      '<div id="stcNewConstructionFields" hidden>' +
+        '<div class="row"><label>New construction name</label><input type="text" class="modal-input" id="stcNewConstructionName"></div>' +
+      '</div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn" data-act="attachment">Save as attachment</button>' +
+        '<button type="button" class="btn primary" data-act="parts">Transfer parts to BOQ</button>' +
+        '<button type="button" class="btn" data-act="close">Close</button>' +
+      '</div>';
+    var m = openModal(html);
+    m.modal.style.maxWidth = "440px";
+    m.modal.querySelector('[data-act="close"]').addEventListener("click", m.close);
+
+    var projectSel = m.modal.querySelector("#stcProjectSel");
+    var newProjectFields = m.modal.querySelector("#stcNewProjectFields");
+    var constructionRow = m.modal.querySelector("#stcConstructionRow");
+    var constructionSel = m.modal.querySelector("#stcConstructionSel");
+    var newConstructionFields = m.modal.querySelector("#stcNewConstructionFields");
+    var projectsData = [];
+
+    function populateConstructions(){
+      constructionSel.innerHTML = "";
+      var proj = projectsData[projectSel.value];
+      if (proj){
+        proj.constructions.forEach(function(c, i){
+          var o = document.createElement("option");
+          o.value = String(i); o.textContent = c.name || ("Construction " + (i + 1));
+          constructionSel.appendChild(o);
+        });
+      }
+      var newOpt = document.createElement("option"); newOpt.value = "__new__"; newOpt.textContent = "+ New construction";
+      constructionSel.appendChild(newOpt);
+      constructionRow.hidden = false;
+      newConstructionFields.hidden = constructionSel.value !== "__new__";
+    }
+
+    fetch("/api/projects").then(function(r){ return r.json(); }).then(function(list){
+      projectsData = list;
+      projectSel.innerHTML = "";
+      list.forEach(function(p, i){
+        var o = document.createElement("option");
+        o.value = String(i); o.textContent = (p.number ? p.number + " — " : "") + p.name;
+        projectSel.appendChild(o);
+      });
+      var newOpt = document.createElement("option"); newOpt.value = "__new__"; newOpt.textContent = "+ New project";
+      projectSel.appendChild(newOpt);
+      newProjectFields.hidden = projectSel.value !== "__new__";
+      populateConstructions();
+    }).catch(function(){
+      projectSel.innerHTML = '<option value="__new__">+ New project</option>';
+      newProjectFields.hidden = false;
+      populateConstructions();
+    });
+
+    projectSel.addEventListener("change", function(){
+      newProjectFields.hidden = projectSel.value !== "__new__";
+      populateConstructions();
+    });
+    constructionSel.addEventListener("change", function(){
+      newConstructionFields.hidden = constructionSel.value !== "__new__";
+    });
+
+    function buildTarget(){
+      if (projectSel.value === "__new__"){
+        return {new: {
+          number: m.modal.querySelector("#stcNewNumber").value,
+          name: m.modal.querySelector("#stcNewName").value,
+          location: m.modal.querySelector("#stcNewLocation").value,
+          contact: m.modal.querySelector("#stcNewContact").value
+        }};
+      }
+      return {slug: projectsData[projectSel.value].slug};
+    }
+    function buildConstruction(tabName){
+      if (constructionSel.value === "__new__"){
+        return {new: {name: m.modal.querySelector("#stcNewConstructionName").value || tabName}};
+      }
+      return {index: parseInt(constructionSel.value, 10)};
+    }
+    function currentTabName(){ return (tabs[activeTabIdx] && tabs[activeTabIdx].name) || "Drawing"; }
+
+    m.modal.querySelector('[data-act="attachment"]').addEventListener("click", function(){
+      var filename = currentTabName().replace(/[^a-z0-9_\- ]/gi, "_") + ".riglines.json";
+      fetch("/api/transfer-drawing", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({mode: "attachment", target: buildTarget(), filename: filename, content: JSON.stringify(serializeState())})
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res.ok){ notify("Drawing attached to the project."); m.close(); }
+        else notify("Couldn't attach the drawing: " + (res.error || "unknown error"));
+      }).catch(function(){ notify("Couldn't reach the catalog app."); });
+    });
+
+    m.modal.querySelector('[data-act="parts"]').addEventListener("click", function(){
+      var parts = computeBoqParts();
+      if (!parts.length){ notify("No coded parts to transfer — assign Jakob codes in Architect mode first."); return; }
+      var tabName = currentTabName();
+      fetch("/api/transfer-drawing", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({mode: "parts", target: buildTarget(), construction: buildConstruction(tabName), sectionName: tabName, parts: parts})
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res.ok){ notify(parts.length + " part" + (parts.length === 1 ? "" : "s") + " transferred to the catalog project."); m.close(); }
+        else notify("Couldn't transfer parts: " + (res.error || "unknown error"));
+      }).catch(function(){ notify("Couldn't reach the catalog app."); });
+    });
+  }
   function openProjectFile(file){
     var reader = new FileReader();
     reader.onload = function(){
@@ -3605,6 +3730,38 @@
   function codeKey(s){ return codeFamily(s) + "|" + s.color; }
   function codeOf(s){ return state.itemCodes[codeKey(s)] || ""; }
   function setCodeFor(s, code){ state.itemCodes[codeKey(s)] = code; }
+  // Used by "Send to Catalog" (see sendToCatalog.* below): the same
+  // Architect-mode codes (state.itemCodes, keyed by codeKey) the Production
+  // sheet already surfaces, reduced to one {code, qty} row per code for a
+  // catalog BOQ Section. Quantity is in whatever unit that code is actually
+  // sold in -- length (m) for ropes, area (m2) for net panels, a plain
+  // instance count for fittings/frames/rings -- not a shape count across
+  // the board, unlike the on-screen Totals panel's "Parts" list.
+  function computeBoqParts(){
+    var byCode = {};
+    state.shapes.forEach(function(s){
+      if (!isArchitectTaggable(s)) return;
+      var layer = layerFor(s.color);
+      if ((layer && layer.visible === false) || isHiddenShape(s)) return;
+      var code = codeOf(s);
+      if (!code) return;
+      var qty = 0;
+      if (s.type === "line"){ qty = pxToM(Math.hypot(s.x2-s.x1, s.y2-s.y1)); }
+      else if (s.type === "polyline"){
+        var plen = 0;
+        for (var pi=0; pi<s.points.length-1; pi++) plen += Math.hypot(s.points[pi+1][0]-s.points[pi][0], s.points[pi+1][1]-s.points[pi][1]);
+        qty = pxToM(plen);
+      } else if (s.type === "rect" && s.rectKind === "rope"){
+        qty = pxToM(2 * (Math.abs(s.w) + Math.abs(s.h)));
+      } else if (s.type === "net"){
+        qty = pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
+      } else {
+        qty = 1;
+      }
+      byCode[code] = (byCode[code] || 0) + qty;
+    });
+    return Object.keys(byCode).map(function(code){ return {code: code, qty: Math.round(byCode[code] * 100) / 100}; });
+  }
   function codeScopeLabel(s){
     if (s.type === "part") return "every \"" + shapeTypeLabel(s) + "\" fitting in this color";
     if (s.type === "line" || s.type === "polyline") return "every cable/cable run in this color";
