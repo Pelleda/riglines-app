@@ -1850,7 +1850,7 @@
   function pdfFilename(){
     return "riglines-" + new Date().toISOString().slice(0,10) + ".pdf";
   }
-  function exportPDF(pngDataUrl, wPx, hPx, btn){
+  function exportPDF(jpegDataUrl, wPx, hPx, btn){
     if (!(window.jspdf && window.jspdf.jsPDF)){
       notify("PDF export isn't available right now — try \"Copy image\" instead.");
       return;
@@ -1858,11 +1858,16 @@
     var origLabel = btn ? btn.textContent : null;
     if (btn){ btn.textContent = "Building PDF…"; btn.disabled = true; }
     try{
+      // JPEG, not PNG: jsPDF embeds a JPEG's own compressed byte stream close to directly,
+      // while a large PNG gets decoded to raw pixels and only compressed via jsPDF's own
+      // deflate step — which has real corruption bugs on very large buffers (the "colorful
+      // noise" failure this was hitting). compress:true is safe here since the JPEG payload
+      // jsPDF is deflating is already small.
       var doc = new window.jspdf.jsPDF({
         orientation: wPx >= hPx ? "landscape" : "portrait",
         unit: "px", format: [wPx, hPx], compress: true
       });
-      doc.addImage(pngDataUrl, "PNG", 0, 0, wPx, hPx);
+      doc.addImage(jpegDataUrl, "JPEG", 0, 0, wPx, hPx);
       var blob = doc.output("blob");
       var filename = pdfFilename();
       if (window.claude && window.claude.use){
@@ -1885,7 +1890,7 @@
     }
     if (btn){ btn.textContent = origLabel; btn.disabled = false; }
   }
-  function showExportModal(pngDataUrl, svgString, wPx, hPx, cropRect){
+  function showExportModal(pngDataUrl, jpegDataUrl, svgString, wPx, hPx, cropRect){
     var layoutFrames = state.shapes.filter(function(s){ return s.type === "layoutframe"; });
     var areaRow = "";
     if (layoutFrames.length){
@@ -1943,15 +1948,20 @@
       });
     });
     m.modal.querySelector('[data-act="pdf"]').addEventListener("click", function(e){
-      exportPDF(pngDataUrl, wPx, hPx, e.currentTarget);
+      exportPDF(jpegDataUrl, wPx, hPx, e.currentTarget);
     });
   }
   function exportDrawing(cropRect){
     var svgString = buildExportSVGString(cropRect);
     svgStringToImage(svgString, function(img){
-      var scale = 2;
       var w = cropRect ? cropRect.w : svg.width.baseVal.value;
       var h = cropRect ? cropRect.h : svg.height.baseVal.value;
+      // Cap the rasterized export at ~6000px on the long side. A large combined drawing
+      // (several facades side by side) at scale 2 can reach 40+ megapixels, and jsPDF's
+      // addImage has known corruption bugs with very large PNG payloads — it's the same
+      // failure mode as the noise seen on a bad export, so stay well under where that bug
+      // tends to trigger rather than relying on the PDF-side fix alone.
+      var scale = Math.max(1, Math.min(2, 6000 / Math.max(w, h)));
       var canvas = document.createElement("canvas");
       canvas.width = w * scale; canvas.height = h * scale;
       var ctx = canvas.getContext("2d");
@@ -1960,7 +1970,14 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       var pngDataUrl = canvas.toDataURL("image/png");
-      showExportModal(pngDataUrl, svgString, canvas.width, canvas.height, cropRect);
+      // Separate JPEG encode of the same canvas, for the PDF only. jsPDF embeds a JPEG as
+      // its already-compressed byte stream directly; a PNG this large gets decoded to raw
+      // pixels internally and only compressed via jsPDF's own deflate step, which is where
+      // the corruption happened. The drawing is flat color on a solid paper background (no
+      // transparency, already composited above), so JPEG's lossy compression is invisible
+      // here — quality 0.95 keeps thin lines crisp.
+      var jpegDataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      showExportModal(pngDataUrl, jpegDataUrl, svgString, canvas.width, canvas.height, cropRect);
     });
   }
 
