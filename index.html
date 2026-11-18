@@ -2347,7 +2347,7 @@
       el("circle", Object.assign({cx:0, cy:0, r:11}, s), g);
       el("circle", Object.assign({cx:0, cy:0, r:6.5}, s), g);
       el("rect", Object.assign({x:9, y:-3, width:5, height:6, rx:1}, s), g);
-    } else if (kind === "eyeend"){
+    } else if (kind === "eyeend" || kind === "jakob30914"){
       drawRopeTail(g, s, 0, -17, 0, -1);
       el("rect", Object.assign({x:-3, y:-17, width:6, height:9, rx:1}, s), g);
       el("line", Object.assign({x1:0, y1:-8, x2:0, y2:-3}, s), g);
@@ -2721,6 +2721,7 @@
     {kind:"clevisholder180", label:"Clevis connector, 180°", cat:"GreenWebnet"},
     {kind:"clevisholder360", label:"Clevis connector, 360°", cat:"GreenWebnet"},
     {kind:"standoffWebnet", label:"Standoff, Webnet", cat:"GreenWebnet"},
+    {kind:"jakob30914", label:"Eye GreenGuide, swaged — Jakob 30914", cat:"GreenGuide"},
     {kind:"holderMulti", label:"Clevis holder, several cables", cat:"GreenGuide"},
     {kind:"holderSingle", label:"Clevis holder, single cable", cat:"GreenGuide"},
     {kind:"ropeguide", label:"Rope guide, GreenGuide", cat:"GreenGuide"},
