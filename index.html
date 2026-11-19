@@ -3912,7 +3912,13 @@
       return pxToM(plen);
     }
     if (s.type === "rect" && s.rectKind === "rope"){ return pxToM(2 * (Math.abs(s.w) + Math.abs(s.h))); }
-    if (s.type === "net"){ return pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h)); }
+    if (s.type === "net"){
+      if (s.boundaryPoints){
+        var netPts = s.boundaryPoints.map(function(p){ return [s.x+p[0], s.y+p[1]]; });
+        return pxAreaToM2(areaOfPoints(netPts).area);
+      }
+      return pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
+    }
     return 1;
   }
   function boqRowsFromCodeMap(byCode){
@@ -5697,29 +5703,51 @@
     render(); renderProps();
     notify(result.mode === "extend" ? "Extended to the boundary." : "Trimmed to the boundary.");
   }
-  function drawMesh(parent, id, x, y, w, h, color, cellPx){
+  // One family of parallel lines at angleDeg, spaced `spacing` apart
+  // (measured perpendicular to the line direction, so it's a real cell
+  // size regardless of angle), long enough to cover a disk of radius
+  // padLen around (cx,cy) -- the caller clips away whatever spills past
+  // the actual boundary, same trick the old fixed-45°-only version used.
+  function drawMeshFamily(parent, cx, cy, padLen, angleDeg, spacing, color){
+    var rad = angleDeg * Math.PI / 180;
+    var dirX = Math.cos(rad), dirY = Math.sin(rad);
+    var perpX = -dirY, perpY = dirX;
+    for (var k = -padLen; k <= padLen; k += spacing){
+      var ox = cx + perpX * k, oy = cy + perpY * k;
+      el("line", {x1:ox - dirX*padLen, y1:oy - dirY*padLen, x2:ox + dirX*padLen, y2:oy + dirY*padLen, stroke:color, "stroke-width":1}, parent);
+    }
+  }
+  // x,y,w,h: the net's own rect (default "diamond" nets), or just a padding/
+  // centering reference box when boundaryPoints (a triangle/polygon net) is
+  // given -- boundaryPoints are absolute points, used for the actual clip
+  // shape and outline instead. orientation elongates the mesh's eyes along
+  // the panel's width ("horizontal") or height ("vertical") instead of the
+  // plain symmetric diamond -- real webnet can be installed either way.
+  function drawMesh(parent, id, x, y, w, h, color, cellPx, orientation, boundaryPoints){
     cellPx = Math.max(cellPx, 4);
     // Crosshatch drawn as real clipped line geometry, not an SVG <pattern> fill — patterns
     // (especially with patternTransform) can rasterize corrupted when many of them appear
     // in a large SVG rendered via Image()+canvas, which is how PNG/PDF export works. Every
     // other repeating fill in this app (drawHatchFill) already avoids <pattern> for the
-    // same reason; this brings drawMesh in line with that.
-    el("rect", {x:x, y:y, width:w, height:h, fill:"transparent", stroke:"none", "pointer-events":"all"}, parent);
+    // same reason; this keeps drawMesh in line with that.
+    var poly = boundaryPoints && boundaryPoints.length >= 3;
+    var polyPts = poly ? boundaryPoints.map(function(p){ return p[0]+","+p[1]; }).join(" ") : null;
+    if (poly) el("polygon", {points:polyPts, fill:"transparent", stroke:"none", "pointer-events":"all"}, parent);
+    else el("rect", {x:x, y:y, width:w, height:h, fill:"transparent", stroke:"none", "pointer-events":"all"}, parent);
     var clipId = "netclip-" + id;
     var clip = el("clipPath", {id:clipId}, parent);
-    el("rect", {x:x, y:y, width:w, height:h}, clip);
+    if (poly) el("polygon", {points:polyPts}, clip);
+    else el("rect", {x:x, y:y, width:w, height:h}, clip);
     var g = el("g", {"clip-path":"url(#" + clipId + ")"}, parent);
-    var pad = w + h + cellPx;
-    var step = cellPx * Math.SQRT2;
-    var kMinA = (y - pad) - (x + pad), kMaxA = (y + pad) - (x - pad);
-    for (var k = Math.floor(kMinA/step)*step; k <= kMaxA; k += step){
-      el("line", {x1:x-pad, y1:(x-pad)+k, x2:x+pad, y2:(x+pad)+k, stroke:color, "stroke-width":1}, g);
-    }
-    var kMinB = (x - pad) + (y - pad), kMaxB = (x + pad) + (y + pad);
-    for (var k2 = Math.floor(kMinB/step)*step; k2 <= kMaxB; k2 += step){
-      el("line", {x1:x-pad, y1:k2-(x-pad), x2:x+pad, y2:k2-(x+pad), stroke:color, "stroke-width":1}, g);
-    }
-    el("rect", {x:x, y:y, width:w, height:h, fill:"none", stroke:color, "stroke-width":2}, parent);
+    var cx = x + w/2, cy = y + h/2;
+    var R = Math.hypot(w, h)/2 + cellPx*2;
+    var angleA = 45, angleB = 135;
+    if (orientation === "horizontal"){ angleA = 22; angleB = 158; }
+    else if (orientation === "vertical"){ angleA = 68; angleB = 112; }
+    drawMeshFamily(g, cx, cy, R, angleA, cellPx, color);
+    drawMeshFamily(g, cx, cy, R, angleB, cellPx, color);
+    if (poly) el("polygon", {points:polyPts, fill:"none", stroke:color, "stroke-width":2}, parent);
+    else el("rect", {x:x, y:y, width:w, height:h, fill:"none", stroke:color, "stroke-width":2}, parent);
   }
   function pruneOrphanGroups(){
     var used = {};
@@ -5800,9 +5828,13 @@
           addLenLabel(g, pa[0],pa[1],pb[0],pb[1]);
         }
       } else if (s.type === "net"){
-        var nx=Math.min(s.x,s.x+s.w), ny=Math.min(s.y,s.y+s.h), nw=Math.abs(s.w), nh=Math.abs(s.h);
-        drawMesh(g, s.id, nx, ny, nw, nh, s.color, mToPx(s.mesh || 0.15));
-        var netText = labelTextOverride(s, fmtLen(pxToM(nw)) + " × " + fmtLen(pxToM(nh)) + " net");
+        var nb = boundsOf(s);
+        var netAbsPts = s.boundaryPoints ? s.boundaryPoints.map(function(p){ return [s.x+p[0], s.y+p[1]]; }) : null;
+        drawMesh(g, s.id, nb.x, nb.y, nb.w, nb.h, s.color, mToPx(s.mesh || 0.15), s.meshOrientation, netAbsPts);
+        var netDefaultText = netAbsPts
+          ? pxAreaToM2(areaOfPoints(netAbsPts).area).toFixed(2) + " m² net"
+          : fmtLen(pxToM(nb.w)) + " × " + fmtLen(pxToM(nb.h)) + " net";
+        var netText = labelTextOverride(s, netDefaultText);
         if (netText){
           var netAnchor = labelAnchor(s);
           if (labelIsMoved(s)) drawLabelLeader(g, netAnchor);
@@ -5954,7 +5986,7 @@
               var delT = el("text", {x:delX, y:delY+3.5, "text-anchor":"middle", "font-size":"11", "font-weight":"700"}, delG);
               delT.textContent = "×";
             }
-          } else if (s.type === "rect" || s.type === "net" || s.type === "image" || s.type === "layoutframe"){
+          } else if (s.type === "rect" || s.type === "image" || s.type === "layoutframe" || (s.type === "net" && !s.boundaryPoints)){
             [["tl",b.x,b.y,"corner"],["tr",b.x+b.w,b.y,"corner"],["bl",b.x,b.y+b.h,"corner"],["br",b.x+b.w,b.y+b.h,"corner"]].forEach(function(h){
               var hp = gumPt(h[1], h[2]);
               el("circle", {cx:hp[0], cy:hp[1], r:5, class:"handle", "data-handle":h[0], "data-id":s.id}, handlesLayer);
@@ -6032,6 +6064,11 @@
   }
   function boundsOf(s){
     if (s.type==="line" || s.type==="measure") return {x:Math.min(s.x1,s.x2), y:Math.min(s.y1,s.y2), w:Math.abs(s.x2-s.x1), h:Math.abs(s.y2-s.y1)};
+    if (s.type==="net" && s.boundaryPoints){
+      var nbx=s.boundaryPoints.map(function(p){return s.x+p[0];}), nby=s.boundaryPoints.map(function(p){return s.y+p[1];});
+      var nbminx=Math.min.apply(null,nbx), nbmaxx=Math.max.apply(null,nbx), nbminy=Math.min.apply(null,nby), nbmaxy=Math.max.apply(null,nby);
+      return {x:nbminx,y:nbminy,w:nbmaxx-nbminx,h:nbmaxy-nbminy};
+    }
     if (s.type==="rect" || s.type==="net" || s.type==="image" || s.type==="callout" || s.type==="layoutframe") return {x:Math.min(s.x,s.x+s.w), y:Math.min(s.y,s.y+s.h), w:Math.abs(s.w), h:Math.abs(s.h)};
     if (s.type==="circle") return {x:s.cx-s.r, y:s.cy-(s.ry||s.r), w:s.r*2, h:(s.ry||s.r)*2};
     if (s.type==="ring") return {x:s.cx-s.rOuter, y:s.cy-(s.rOuterY||s.rOuter), w:s.rOuter*2, h:(s.rOuterY||s.rOuter)*2};
@@ -6242,8 +6279,16 @@
         partCounts[flabel] = (partCounts[flabel] || 0) + 1;
         grandParts++;
       } else if (s.type === "net"){
-        var area = pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
-        var perim = 2 * (pxToM(Math.abs(s.w)) + pxToM(Math.abs(s.h)));
+        var area, perim;
+        if (s.boundaryPoints){
+          var netTotPts = s.boundaryPoints.map(function(p){ return [s.x+p[0], s.y+p[1]]; });
+          var netTotCalc = areaOfPoints(netTotPts);
+          area = pxAreaToM2(netTotCalc.area);
+          perim = pxToM(netTotCalc.perim);
+        } else {
+          area = pxToM(Math.abs(s.w)) * pxToM(Math.abs(s.h));
+          perim = 2 * (pxToM(Math.abs(s.w)) + pxToM(Math.abs(s.h)));
+        }
         areaSums[s.color] = (areaSums[s.color] || 0) + area;
         perimSums[s.color] = (perimSums[s.color] || 0) + perim;
       } else if (s.type === "part"){
@@ -6698,9 +6743,33 @@
       }
       appendLabelControls(s);
     } else if (s.type === "net"){
-      numRow("Width (m)", pxToM(Math.abs(s.w)).toFixed(3), function(v){ s.w = mToPx(v) * Math.sign(s.w || 1); });
-      numRow("Height (m)", pxToM(Math.abs(s.h)).toFixed(3), function(v){ s.h = mToPx(v) * Math.sign(s.h || 1); });
+      if (s.boundaryPoints){
+        var netAreaP = pxAreaToM2(areaOfPoints(s.boundaryPoints.map(function(p){ return [s.x+p[0], s.y+p[1]]; })).area);
+        var netShapeNote = document.createElement("p"); netShapeNote.className = "empty";
+        netShapeNote.textContent = "Triangular net panel — " + netAreaP.toFixed(2) + " m². To reshape, delete this and convert a freshly-drawn triangle instead.";
+        propsEl.appendChild(netShapeNote);
+      } else {
+        numRow("Width (m)", pxToM(Math.abs(s.w)).toFixed(3), function(v){ s.w = mToPx(v) * Math.sign(s.w || 1); });
+        numRow("Height (m)", pxToM(Math.abs(s.h)).toFixed(3), function(v){ s.h = mToPx(v) * Math.sign(s.h || 1); });
+      }
       numRow("Mesh cell (cm)", ((s.mesh||0.15)*100).toFixed(1), function(v){ s.mesh = Math.max(v,1)/100; }, "1");
+      var eyeLab = document.createElement("label"); eyeLab.textContent = "Eye orientation";
+      eyeLab.style.display = "block"; eyeLab.style.marginTop = "4px";
+      propsEl.appendChild(eyeLab);
+      var eyeRow = document.createElement("div"); eyeRow.className = "row"; eyeRow.style.gap = "4px";
+      [["diamond","Diamond"],["horizontal","Horizontal"],["vertical","Vertical"]].forEach(function(pair){
+        var eb = document.createElement("button"); eb.type = "button"; eb.className = "btn"; eb.style.flex = "1";
+        eb.textContent = pair[1];
+        eb.setAttribute("aria-pressed", String((s.meshOrientation || "diamond") === pair[0]));
+        eb.addEventListener("click", function(){
+          pushUndo();
+          s.meshOrientation = pair[0];
+          render();
+          renderProps();
+        });
+        eyeRow.appendChild(eb);
+      });
+      propsEl.appendChild(eyeRow);
       appendLabelControls(s);
     } else if (s.type === "image"){
       numRow("Width (m)", pxToM(Math.abs(s.w)).toFixed(3), function(v){ s.w = mToPx(v) * Math.sign(s.w || 1); });
@@ -6824,6 +6893,28 @@
     } else if (s.type === "triangle"){
       var note = document.createElement("p"); note.className = "empty"; note.textContent = "Drag a corner to resize.";
       propsEl.appendChild(note);
+      var toNetBtn = document.createElement("button"); toNetBtn.type = "button"; toNetBtn.className = "btn"; toNetBtn.style.marginTop = "8px";
+      toNetBtn.textContent = "Convert to net panel";
+      toNetBtn.title = "Turn this triangle into a priced net/webnet panel shaped like it, instead of only a plain rectangle -- assign it a Jakob code in Architect mode same as any other net.";
+      toNetBtn.addEventListener("click", function(){
+        pushUndo();
+        var b = boundsOf(s);
+        var pts = s.points.map(function(p){ return [p[0]-b.x, p[1]-b.y]; });
+        s.type = "net";
+        s.x = b.x; s.y = b.y;
+        // w/h stay as the bounding-box size -- a harmless fallback for any
+        // code that still reads them directly (e.g. DXF export); boundsOf()/
+        // boqQtyOf()/the Totals panel all use boundaryPoints's real polygon
+        // area instead wherever it matters.
+        s.w = b.w; s.h = b.h;
+        s.boundaryPoints = pts;
+        s.mesh = s.mesh || 0.15;
+        s.meshOrientation = s.meshOrientation || "diamond";
+        delete s.points;
+        render();
+        renderProps();
+      });
+      propsEl.appendChild(toNetBtn);
     } else if (s.type === "polyline"){
       var plTot = 0;
       for (var pki=0; pki<s.points.length-1; pki++){
