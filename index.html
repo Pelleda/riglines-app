@@ -909,6 +909,10 @@
   }
   var pendingMeasureOffset = 0.3;
   var clipboard = [];
+  // Updated on every canvas pointermove (see the main pointermove handler
+  // below) -- lets paste drop the clipboard at the cursor instead of just
+  // offset from wherever the shapes were originally copied.
+  var lastPointerPoint = null;
   var snapEnabled = false;
   var gridSnapEnabled = false;
   var GRID_SNAP_M = 0.1;
@@ -4643,10 +4647,35 @@
       .map(function(s){ return JSON.parse(JSON.stringify(s)); });
     notify(clipboard.length === 1 ? "Copied 1 shape." : "Copied " + clipboard.length + " shapes.");
   }
+  // Bounding-box center of a plain array of shapes (not necessarily in
+  // state.shapes yet) -- boundsOf() only reads the shape's own fields, so
+  // this works on the clipboard directly before anything is pasted.
+  function shapesBoundsCenter(shapesArr){
+    var minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, any=false;
+    shapesArr.forEach(function(s){
+      var b = boundsOf(s);
+      if (!b) return;
+      any = true;
+      minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x+b.w); maxY = Math.max(maxY, b.y+b.h);
+    });
+    return any ? {cx:(minX+maxX)/2, cy:(minY+maxY)/2} : null;
+  }
   function pasteClipboard(){
     if (!clipboard.length) return;
     pushUndo();
-    var newIds = cloneShapesOffset(clipboard, mToPx(0.2), mToPx(0.2));
+    var center = shapesBoundsCenter(clipboard);
+    var dx, dy;
+    if (center && lastPointerPoint){
+      // Drop the pasted selection's center at the cursor, Figma-style --
+      // not a small offset from where it was copied, which is what made
+      // repeated pastes pile up invisibly on top of the original.
+      dx = lastPointerPoint.x - center.cx;
+      dy = lastPointerPoint.y - center.cy;
+    } else {
+      dx = mToPx(0.2); dy = mToPx(0.2);
+    }
+    var newIds = cloneShapesOffset(clipboard, dx, dy);
     state.selectedIds = newIds;
     state.selectedId = newIds.length === 1 ? newIds[0] : null;
     render();
@@ -7299,6 +7328,7 @@
   });
 
   svg.addEventListener("pointermove", function(evt){
+    lastPointerPoint = toPoint(evt);
     if (panState){
       canvasWrap.scrollLeft = panState.scrollLeft - (evt.clientX - panState.startX) / panState.scaleX;
       canvasWrap.scrollTop = panState.scrollTop - (evt.clientY - panState.startY) / panState.scaleY;
