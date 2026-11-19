@@ -2095,7 +2095,7 @@
         return;
       }catch(e){}
     }
-    seedExample();
+    hydrateState(defaultProjectData());
     tabs = [{id:"t1", name:"Project 1", snapshot:null}];
     activeTabIdx = 0;
   }
@@ -2209,17 +2209,6 @@
     input.addEventListener("blur", commit);
     input.addEventListener("click", function(e){ e.stopPropagation(); });
     input.addEventListener("dblclick", function(e){ e.stopPropagation(); });
-  }
-  function seedExample(){
-    state.shapes = [
-      {id: uid(), type:"part", partType:"ring", x:520, y:120, rot:0, color:"#a6437e"},
-      {id: uid(), type:"line", x1:520, y1:130, x2:360, y2:340, color:"#2b6cb5"},
-      {id: uid(), type:"line", x1:520, y1:130, x2:680, y2:340, color:"#2b6cb5"},
-      {id: uid(), type:"part", partType:"shackle", x:520, y:400, rot:0, color:"#b5432b"},
-      {id: uid(), type:"line", x1:360, y1:340, x2:520, y2:392, color:"#2b6cb5"},
-      {id: uid(), type:"line", x1:680, y1:340, x2:520, y2:392, color:"#2b6cb5"},
-      {id: uid(), type:"text", x:300, y:90, text:"Example — Clear canvas to start your own", color:"#726a5b"}
-    ];
   }
   function projectFilename(){
     return "riglines-" + new Date().toISOString().slice(0,10) + ".riglines.json";
